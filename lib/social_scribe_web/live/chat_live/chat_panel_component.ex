@@ -340,12 +340,16 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
   def handle_event("load_conversation", %{"id" => id}, socket) do
     conversation = Chat.get_conversation_with_messages(id)
 
-    {:noreply,
-     assign(socket,
-       active_tab: :chat,
-       conversation: conversation,
-       messages: conversation.messages
-     )}
+    if conversation.user_id != socket.assigns.current_user.id do
+      {:noreply, socket}
+    else
+      {:noreply,
+       assign(socket,
+         active_tab: :chat,
+         conversation: conversation,
+         messages: conversation.messages
+       )}
+    end
   end
 
   @impl true
@@ -400,13 +404,13 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
         prev = Enum.at(messages, idx - 1)
 
         prev && message.inserted_at &&
-          NaiveDateTime.diff(message.inserted_at, prev.inserted_at, :minute) > 5
+          DateTime.diff(message.inserted_at, prev.inserted_at, :minute) > 5
     end
   end
 
   defp format_timestamp(nil), do: ""
 
-  defp format_timestamp(%NaiveDateTime{} = dt) do
+  defp format_timestamp(%DateTime{} = dt) do
     hour = dt.hour
     minute = dt.minute
 

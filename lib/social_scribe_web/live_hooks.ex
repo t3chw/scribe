@@ -72,7 +72,7 @@ defmodule SocialScribeWeb.LiveHooks do
   end
 
   defp handle_chat_info({ref, {:chat_ai_result, conversation_id, _assistant_msg}}, socket)
-       when is_reference(ref) do
+       when ref == socket.assigns.chat_task_ref do
     Process.demonitor(ref, [:flush])
     conversation = Chat.get_conversation_with_messages(conversation_id)
 
