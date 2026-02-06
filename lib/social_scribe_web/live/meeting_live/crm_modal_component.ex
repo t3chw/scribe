@@ -1,4 +1,4 @@
-defmodule SocialScribeWeb.MeetingLive.HubspotModalComponent do
+defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
   use SocialScribeWeb, :live_component
 
   import SocialScribeWeb.ModalComponents
@@ -6,27 +6,28 @@ defmodule SocialScribeWeb.MeetingLive.HubspotModalComponent do
   @impl true
   def render(assigns) do
     assigns = assign(assigns, :patch, ~p"/dashboard/meetings/#{assigns.meeting}")
-    assigns = assign_new(assigns, :modal_id, fn -> "hubspot-modal-wrapper" end)
+    assigns = assign_new(assigns, :modal_id, fn -> "#{assigns.crm_config.id}-modal-wrapper" end)
 
     ~H"""
     <div class="space-y-6">
       <div>
-        <h2 id={"#{@modal_id}-title"} class="text-xl font-medium tracking-tight text-slate-900">Update in HubSpot</h2>
+        <h2 id={"#{@modal_id}-title"} class="text-xl font-medium tracking-tight text-slate-900">
+          Update in {@crm_config.name}
+        </h2>
         <p id={"#{@modal_id}-description"} class="mt-2 text-base font-light leading-7 text-slate-500">
-          Here are suggested updates to sync with your integrations based on this
-          <span class="block">meeting</span>
+          {@crm_config.description}
         </p>
       </div>
 
       <.contact_select
-          selected_contact={@selected_contact}
-          contacts={@contacts}
-          loading={@searching}
-          open={@dropdown_open}
-          query={@query}
-          target={@myself}
-          error={@error}
-        />
+        selected_contact={@selected_contact}
+        contacts={@contacts}
+        loading={@searching}
+        open={@dropdown_open}
+        query={@query}
+        target={@myself}
+        error={@error}
+      />
 
       <%= if @selected_contact do %>
         <.suggestions_section
@@ -34,6 +35,7 @@ defmodule SocialScribeWeb.MeetingLive.HubspotModalComponent do
           loading={@loading}
           myself={@myself}
           patch={@patch}
+          crm_config={@crm_config}
         />
       <% end %>
     </div>
@@ -44,6 +46,7 @@ defmodule SocialScribeWeb.MeetingLive.HubspotModalComponent do
   attr :loading, :boolean, required: true
   attr :myself, :any, required: true
   attr :patch, :string, required: true
+  attr :crm_config, :map, required: true
 
   defp suggestions_section(assigns) do
     assigns = assign(assigns, :selected_count, Enum.count(assigns.suggestions, & &1.apply))
@@ -69,8 +72,8 @@ defmodule SocialScribeWeb.MeetingLive.HubspotModalComponent do
 
             <.modal_footer
               cancel_patch={@patch}
-              submit_text="Update HubSpot"
-              submit_class="bg-hubspot-button hover:bg-hubspot-button-hover"
+              submit_text={@crm_config.submit_text}
+              submit_class={@crm_config.submit_class}
               disabled={@selected_count == 0}
               loading={@loading}
               loading_text="Updating..."
@@ -102,7 +105,8 @@ defmodule SocialScribeWeb.MeetingLive.HubspotModalComponent do
     {:ok, socket}
   end
 
-  defp maybe_select_all_suggestions(socket, %{suggestions: suggestions}) when is_list(suggestions) do
+  defp maybe_select_all_suggestions(socket, %{suggestions: suggestions})
+       when is_list(suggestions) do
     assign(socket, suggestions: Enum.map(suggestions, &Map.put(&1, :apply, true)))
   end
 
@@ -114,7 +118,7 @@ defmodule SocialScribeWeb.MeetingLive.HubspotModalComponent do
 
     if String.length(query) >= 2 do
       socket = assign(socket, searching: true, error: nil, query: query, dropdown_open: true)
-      send(self(), {:hubspot_search, query, socket.assigns.credential})
+      send(self(), {socket.assigns.crm_config.search_msg, query, socket.assigns.credential})
       {:noreply, socket}
     else
       {:noreply, assign(socket, query: query, contacts: [], dropdown_open: query != "")}
@@ -136,10 +140,12 @@ defmodule SocialScribeWeb.MeetingLive.HubspotModalComponent do
     if socket.assigns.dropdown_open do
       {:noreply, assign(socket, dropdown_open: false)}
     else
-      # When opening dropdown with selected contact, search for similar contacts
       socket = assign(socket, dropdown_open: true, searching: true)
-      query = "#{socket.assigns.selected_contact.firstname} #{socket.assigns.selected_contact.lastname}"
-      send(self(), {:hubspot_search, query, socket.assigns.credential})
+
+      query =
+        "#{socket.assigns.selected_contact.firstname} #{socket.assigns.selected_contact.lastname}"
+
+      send(self(), {socket.assigns.crm_config.search_msg, query, socket.assigns.credential})
       {:noreply, socket}
     end
   end
@@ -149,15 +155,22 @@ defmodule SocialScribeWeb.MeetingLive.HubspotModalComponent do
     contact = Enum.find(socket.assigns.contacts, &(&1.id == contact_id))
 
     if contact do
-      socket = assign(socket,
-        loading: true,
-        selected_contact: contact,
-        error: nil,
-        dropdown_open: false,
-        query: "",
-        suggestions: []
+      socket =
+        assign(socket,
+          loading: true,
+          selected_contact: contact,
+          error: nil,
+          dropdown_open: false,
+          query: "",
+          suggestions: []
+        )
+
+      send(
+        self(),
+        {socket.assigns.crm_config.suggest_msg, contact, socket.assigns.meeting,
+         socket.assigns.credential}
       )
-      send(self(), {:generate_suggestions, contact, socket.assigns.meeting, socket.assigns.credential})
+
       {:noreply, socket}
     else
       {:noreply, assign(socket, error: "Contact not found")}
@@ -213,7 +226,12 @@ defmodule SocialScribeWeb.MeetingLive.HubspotModalComponent do
         Map.put(acc, field, Map.get(values, field, ""))
       end)
 
-    send(self(), {:apply_hubspot_updates, updates, socket.assigns.selected_contact, socket.assigns.credential})
+    send(
+      self(),
+      {socket.assigns.crm_config.apply_msg, updates, socket.assigns.selected_contact,
+       socket.assigns.credential}
+    )
+
     {:noreply, socket}
   end
 

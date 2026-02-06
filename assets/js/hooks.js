@@ -13,4 +13,30 @@ Hooks.Clipboard = {
     }
 }
 
+Hooks.ChatScroll = {
+    mounted() {
+        this.scrollToBottom()
+    },
+    updated() {
+        this.scrollToBottom()
+    },
+    scrollToBottom() {
+        this.el.scrollTop = this.el.scrollHeight
+    }
+}
+
+Hooks.ChatInput = {
+    mounted() {
+        this.el.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault()
+                const form = this.el.closest("form")
+                if (form) {
+                    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+                }
+            }
+        })
+    }
+}
+
 export default Hooks

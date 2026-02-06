@@ -1,9 +1,11 @@
+# Environment and secrets
 .env
+.env.*
 .envrc
- 
+
 # The directory Mix will write compiled artifacts to.
 /_build/
- 
+
 # If you run "mix test --cover", coverage assets end up here.
 /cover/
 
@@ -37,4 +39,19 @@ social_scribe-*.tar
 # In case you use Node.js/npm, you want to ignore these.
 npm-debug.log
 /assets/node_modules/
+
+# Fly.io deployment (generated per-user, contains app name)
+fly.toml
+
+# Claude Code instructions (local development only)
+CLAUDE.md
+
+# IDE / editor
+.elixir_ls/
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
 

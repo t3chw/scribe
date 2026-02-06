@@ -35,6 +35,60 @@ Social Scribe is a powerful Elixir and Phoenix LiveView application designed to 
 
 ---
 
+## 🔗 Salesforce Integration (New)
+
+Full Salesforce CRM integration following the same architecture as HubSpot, designed to make adding future CRMs straightforward.
+
+### Salesforce OAuth
+
+* **Custom Ueberauth Strategy:** `lib/ueberauth/strategy/salesforce.ex` — handles authorization code flow with Salesforce's OAuth 2.0 endpoints
+* **Credential Storage:** Stored in `user_credentials` with `provider: "salesforce"`, including `instance_url` in the `metadata` field (needed for all Salesforce API calls)
+* **Token Refresh:** `SalesforceTokenRefresher` Oban cron worker runs every 5 minutes, plus `with_token_refresh/2` wrapper auto-retries on 401
+
+### Salesforce Contact Updates
+
+* **Contact Search** — Search Salesforce contacts via SOSL query
+* **AI Suggestions** — Gemini analyzes meeting transcript and suggests field updates (phone, email, job title, department, address)
+* **Review & Apply** — Same modal UI as HubSpot: see current vs suggested values, toggle fields on/off, batch-apply updates
+
+### Salesforce Setup (Development)
+
+1. Create a free Salesforce Developer Edition at [developer.salesforce.com](https://developer.salesforce.com)
+2. Setup > App Manager > New Connected App
+3. Enable OAuth, callback: `http://localhost:4000/auth/salesforce/callback`
+4. Scopes: `api`, `refresh_token`, `offline_access`
+5. Set `SALESFORCE_CLIENT_ID` and `SALESFORCE_CLIENT_SECRET` env vars
+
+---
+
+## 💬 AI Chat Interface (New)
+
+An AI-powered chat panel accessible from every dashboard page via the "Ask Anything" button.
+
+* **Slide-out Panel** — Opens from the right side of the screen with Chat and History tabs
+* **CRM-Aware** — Looks up contacts in both HubSpot and Salesforce (whichever is connected) to answer questions
+* **Conversation History** — Conversations are persisted and can be resumed from the History tab
+* **Non-blocking** — AI processing runs in a supervised async task so the LiveView stays responsive
+
+---
+
+## 🏗️ Unified CRM Architecture
+
+Both HubSpot and Salesforce follow the same pattern, making it easy to add more CRMs:
+
+| Layer | HubSpot | Salesforce |
+|-------|---------|------------|
+| API Behaviour | `HubspotApiBehaviour` | `SalesforceApiBehaviour` |
+| API Client | `HubspotApi` | `SalesforceApi` |
+| Token Refresher | `HubspotTokenRefresher` | `SalesforceTokenRefresher` |
+| AI Suggestions | `HubspotSuggestions` | `SalesforceSuggestions` |
+| Oban Worker | `Workers.HubspotTokenRefresher` | `Workers.SalesforceTokenRefresher` |
+| Modal UI | `CrmModalComponent` (shared, parameterized via `crm_config`) |
+
+The modal component (`crm_modal_component.ex`) is a single parameterized LiveComponent that handles both CRMs — it receives a `crm_config` map that specifies the CRM name, message atoms, button text, and styling.
+
+---
+
 ## App Flow
 
 * **Login With Google and Meetins Sync:**
@@ -73,7 +127,7 @@ Social Scribe is a powerful Elixir and Phoenix LiveView application designed to 
 * **Backend:** Elixir, Phoenix LiveView
 * **Database:** PostgreSQL
 * **Background Jobs:** Oban
-* **Authentication:** Ueberauth (for Google, LinkedIn, Facebook, HubSpot OAuth)
+* **Authentication:** Ueberauth (Google, LinkedIn, Facebook, HubSpot, Salesforce)
 * **Meeting Transcription:** Recall.ai API
 * **AI Content Generation:** Google Gemini API (Flash models)
 * **Frontend:** Tailwind CSS, Heroicons (via `tailwind.config.js`)
@@ -87,8 +141,7 @@ Follow these steps to get SocialScribe running on your local machine.
 
 ### Prerequisites
 
-* Elixir
-* Erlang/OTP 
+* Elixir 1.18+ / Erlang/OTP 27+
 * PostgreSQL
 * Node.js (for Tailwind CSS asset compilation)
 
@@ -96,7 +149,7 @@ Follow these steps to get SocialScribe running on your local machine.
 
 1.  **Clone the Repository:**
     ```bash
-    git clone https://github.com/fparadas/social_scribe.git 
+    git clone https://github.com/fparadas/social_scribe.git
     cd social_scribe
     ```
 
@@ -118,39 +171,64 @@ Follow these steps to get SocialScribe running on your local machine.
         * `GOOGLE_CLIENT_ID`: Your Google OAuth Client ID.
         * `GOOGLE_CLIENT_SECRET`: Your Google OAuth Client Secret.
         * `GOOGLE_REDIRECT_URI`: `"http://localhost:4000/auth/google/callback"`
-        * `RECALL_API_KEY`: Your Recall.ai API Key (as provided for the challenge).
+        * `RECALL_API_KEY`: Your Recall.ai API Key.
+        * `RECALL_REGION`: Your Recall.ai region (e.g. `us-west-2`).
         * `GEMINI_API_KEY`: Your Google Gemini API Key.
         * `LINKEDIN_CLIENT_ID`: Your LinkedIn App Client ID.
         * `LINKEDIN_CLIENT_SECRET`: Your LinkedIn App Client Secret.
         * `LINKEDIN_REDIRECT_URI`: `"http://localhost:4000/auth/linkedin/callback"`
-        * `FACEBOOK_APP_ID`: Your Facebook App ID.
-        * `FACEBOOK_APP_SECRET`: Your Facebook App Secret.
+        * `FACEBOOK_CLIENT_ID`: Your Facebook App ID.
+        * `FACEBOOK_CLIENT_SECRET`: Your Facebook App Secret.
         * `FACEBOOK_REDIRECT_URI`: `"http://localhost:4000/auth/facebook/callback"`
         * `HUBSPOT_CLIENT_ID`: Your HubSpot App Client ID.
         * `HUBSPOT_CLIENT_SECRET`: Your HubSpot App Client Secret.
-        * `HUBSPOT_REDIRECT_URI`: `"http://localhost:4000/auth/hubspot/callback"`
+        * `SALESFORCE_CLIENT_ID`: Your Salesforce Connected App Consumer Key.
+        * `SALESFORCE_CLIENT_SECRET`: Your Salesforce Connected App Consumer Secret.
 
 4.  **Start the Phoenix Server:**
     ```bash
-    mix phx.server
+    source .env && mix phx.server
     ```
     Or, to run inside IEx (Interactive Elixir):
     ```bash
-    iex -S mix phx.server
+    source .env && iex -S mix phx.server
     ```
 
 Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 
 ---
 
+## Common Commands
+
+```bash
+mix setup                        # Full setup: deps, database, assets
+mix phx.server                   # Start dev server
+iex -S mix phx.server            # Start with IEx shell
+mix test                         # Run all tests (273+ tests)
+mix test test/path/file.exs      # Run single test file
+mix test test/path/file.exs:42   # Run test at line number
+mix format                       # Format code
+mix ecto.migrate                 # Run pending migrations
+mix ecto.reset                   # Drop, create, migrate, seed
+```
+
+---
+
 ## ⚙️ Functionality Deep Dive
 
-* **Connect & Sync:** Users log in with Google. The "Settings" page allows connecting multiple Google accounts, plus LinkedIn and Facebook accounts. For Facebook, after initial connection, users are guided to select a Page for posting. Calendars are synced to a database to populate the dashboard with upcoming events.
+* **Connect & Sync:** Users log in with Google. The "Settings" page allows connecting multiple Google accounts, plus LinkedIn, Facebook, HubSpot, and Salesforce accounts. For Facebook, after initial connection, users are guided to select a Page for posting. Calendars are synced to a database to populate the dashboard with upcoming events.
 * **Record & Transcribe:** On the dashboard, users toggle "Record Meeting?" for desired events. The system extracts meeting links (Zoom, Meet) and uses Recall.ai to dispatch a bot. A background poller (`BotStatusPoller`) checks for completed recordings and transcripts, saving the data to local `Meeting`, `MeetingTranscript`, and `MeetingParticipant` tables.
 * **AI Content Generation:**
     * Once a meeting is processed, an `AIContentGenerationWorker` is enqueued.
     * This worker uses Google Gemini to draft a follow-up email.
     * It also processes all active "Automations" defined by the user. For each automation, it combines the meeting data with the user's `prompt_template` and calls Gemini to generate content (e.g., a LinkedIn post), saving it as an `AutomationResult`.
+* **CRM Contact Updates:**
+    * From the "Meeting Details" page, open the HubSpot or Salesforce modal.
+    * Search for a contact, AI analyzes the transcript for contact info updates.
+    * Review suggestions with current vs new values, toggle fields on/off, and apply.
+* **AI Chat:**
+    * Open the "Ask Anything" panel from any dashboard page.
+    * Ask questions about CRM contacts — the AI looks up data from connected CRMs and responds.
 * **Social Posting:**
     * From the "Meeting Details" page, users can view AI-generated email drafts and posts from their automations.
     * "Copy" buttons are available.
@@ -172,7 +250,7 @@ Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 
 ### HubSpot Modal UI
 
-* **LiveView Component:** Located at `lib/social_scribe_web/live/meeting_live/hubspot_modal_component.ex`
+* **Unified CRM Component:** Both HubSpot and Salesforce use `CrmModalComponent` — a single parameterized LiveComponent
 * **Contact Search:** Debounced input triggers HubSpot API search, results displayed in dropdown
 * **AI Suggestions:** Fetched via `HubspotSuggestions.generate_suggestions` which calls Gemini with transcript context
 * **Suggestion Cards:** Each card displays:
@@ -187,15 +265,54 @@ Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 
 ---
 
+## Testing
+
+```bash
+mix test    # 273+ tests, 0 failures
+```
+
+Tests use Mox for all external APIs, `Ecto.Adapters.SQL.Sandbox` for DB isolation, and Oban `testing: :manual` mode. Includes property-based tests with StreamData for HubSpot/Salesforce suggestion merging.
+
+---
+
+## Deployment
+
+The app ships with a multi-stage `Dockerfile` and is pre-configured for Fly.io and Google Cloud Run.
+
+### Deploy to Fly.io
+
+```bash
+fly launch                                    # Create app + Postgres
+fly secrets set SECRET_KEY_BASE="$(mix phx.gen.secret)" \
+  GOOGLE_CLIENT_ID="..." \
+  GOOGLE_CLIENT_SECRET="..." \
+  # ... all env vars from above
+fly deploy                                    # Build and deploy
+fly ssh console -C "/app/bin/migrate"         # Run migrations
+```
+
+### Production Environment Variables
+
+In addition to the OAuth/API keys above, production requires:
+
+| Variable | Purpose |
+|----------|---------|
+| `DATABASE_URL` | PostgreSQL connection string (auto-set by Fly Postgres) |
+| `SECRET_KEY_BASE` | Generate with `mix phx.gen.secret` |
+| `PHX_HOST` | Production hostname (e.g. `myapp.fly.dev`) |
+| `PORT` | Server port (default `4000`) |
+
+---
+
 ## ⚠️ Known Issues & Limitations
 
 * **Facebook Posting & App Review:**
     * Posting to Facebook is implemented via the Graph API to a user-managed Page.
     * Full functionality for all users (especially those not app administrators/developers/testers) typically requires a thorough app review process by Meta, potentially including Business Verification. This is standard for apps using Page APIs.
     * During development, posting will be most reliable for app admins to Pages they directly manage.
-* **Error Handling & UI Polish:** While core paths are robustly handled, comprehensive error feedback for all API edge cases and advanced UI polish are areas for continued development beyond the initial 48-hour scope.
 * **Prompt Templating for Automations:** The current automation prompt templating is basic (string replacement). A more sophisticated templating engine (e.g., EEx or a dedicated library) would be a future improvement.
 * **Agenda Integration:** Currently we only sync when the calendar event has a `hangoutLink` or `location` field with a zoom or google meet link.
+
 ---
 
 ## 📚 Learn More (Phoenix Framework)

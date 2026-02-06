@@ -71,7 +71,8 @@ defmodule SocialScribeWeb.Router do
     live_session :require_authenticated_user,
       on_mount: [
         {SocialScribeWeb.UserAuth, :ensure_authenticated},
-        {SocialScribeWeb.LiveHooks, :assign_current_path}
+        {SocialScribeWeb.LiveHooks, :assign_current_path},
+        {SocialScribeWeb.LiveHooks, :assign_chat_state}
       ],
       layout: {SocialScribeWeb.Layouts, :dashboard} do
       live "/", HomeLive
@@ -83,6 +84,7 @@ defmodule SocialScribeWeb.Router do
       live "/meetings/:id", MeetingLive.Show, :show
       live "/meetings/:id/draft_post/:automation_result_id", MeetingLive.Show, :draft_post
       live "/meetings/:id/hubspot", MeetingLive.Show, :hubspot
+      live "/meetings/:id/salesforce", MeetingLive.Show, :salesforce
 
       live "/automations", AutomationLive.Index, :index
       live "/automations/new", AutomationLive.Index, :new
