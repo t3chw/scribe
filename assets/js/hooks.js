@@ -37,11 +37,12 @@ Hooks.ChatInput = {
         this._syncMirror()
 
         this.el.addEventListener("keydown", (e) => {
-            // Mention dropdown navigation
-            if (this.mentionActive) {
-                const suggestions = document.getElementById("mention-suggestions")
-                const items = suggestions ? suggestions.querySelectorAll("button") : []
+            // Mention dropdown navigation — only when dropdown is actually visible
+            const suggestions = document.getElementById("mention-suggestions")
+            const items = suggestions ? suggestions.querySelectorAll("button") : []
+            const dropdownVisible = this.mentionActive && items.length > 0
 
+            if (dropdownVisible) {
                 if (e.key === "ArrowDown") {
                     e.preventDefault()
                     this.selectedIndex = Math.min(this.selectedIndex + 1, items.length - 1)
@@ -83,12 +84,9 @@ Hooks.ChatInput = {
             if (e.key === "Backspace") {
                 const cursor = this.el.selectionStart
                 const selEnd = this.el.selectionEnd
-                // Only handle when there's no text selection (just a cursor)
                 if (cursor === selEnd && cursor > 0) {
                     const val = this.el.value
                     const before = val.substring(0, cursor)
-                    // Check if cursor is right after a mention: @Name or @First Last
-                    // Optionally with a trailing space
                     const mentionMatch = before.match(/@[A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)?\s?$/)
                     if (mentionMatch) {
                         e.preventDefault()
@@ -106,15 +104,18 @@ Hooks.ChatInput = {
             // Enter to send message
             if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault()
-                const form = this.el.closest("form")
-                if (form) {
-                    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
-                }
-                // Clear textarea and mirror after sending
-                setTimeout(() => {
-                    this.el.value = ""
-                    this._syncMirror()
-                }, 0)
+                const message = this.el.value.trim()
+                if (message === "") return
+
+                // Clear immediately before submitting
+                this.el.value = ""
+                this._syncMirror()
+                this.mentionActive = false
+                this.mentionStart = -1
+                this.selectedIndex = -1
+
+                // Push the message directly to the server
+                this.pushEventTo(this.el, "send_message", { message: message })
             }
         })
 
@@ -173,6 +174,17 @@ Hooks.ChatInput = {
 
             this._syncMirror()
         })
+
+        // Clear textarea when form is submitted via button click
+        const form = this.el.closest("form")
+        if (form) {
+            form.addEventListener("submit", () => {
+                setTimeout(() => {
+                    this.el.value = ""
+                    this._syncMirror()
+                }, 0)
+            })
+        }
 
         // Sync scroll between textarea and mirror
         this.el.addEventListener("scroll", () => {
