@@ -297,10 +297,10 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
     assigns = assign(assigns, :name, name)
 
     ~H"""
-    <span class="inline-flex items-center gap-0.5 align-middle">
-      <span class="w-4 h-4 rounded-full bg-slate-300 inline-flex items-center justify-center">
+    <span class="inline-flex items-center gap-1 align-middle bg-slate-200 rounded-full px-2 py-0.5 mx-0.5">
+      <span class="w-4 h-4 rounded-full bg-slate-400 inline-flex items-center justify-center flex-shrink-0">
         <svg
-          class="w-2.5 h-2.5 text-slate-600"
+          class="w-2.5 h-2.5 text-white"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -313,7 +313,7 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
           />
         </svg>
       </span>
-      <span class="font-medium">{@name}</span>
+      <span class="font-medium text-slate-800">{@name}</span>
     </span>
     """
   end

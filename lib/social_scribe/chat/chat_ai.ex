@@ -140,7 +140,7 @@ defmodule SocialScribe.Chat.ChatAI do
 
   @doc """
   Fetches meetings where any of the mentioned names appear as participants.
-  Returns {meeting_context_string, meeting_sources_list}.
+  Returns {meeting_context_string, meeting_sources_list, matched_mention_names}.
   """
   def fetch_relevant_meetings([], _user_id), do: {"", []}
 
