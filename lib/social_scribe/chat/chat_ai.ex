@@ -5,15 +5,18 @@ defmodule SocialScribe.Chat.ChatAI do
   """
 
   alias SocialScribe.Accounts
+  alias SocialScribe.Meetings
   alias SocialScribe.HubspotApiBehaviour, as: HubspotApi
   alias SocialScribe.SalesforceApiBehaviour, as: SalesforceApi
   alias SocialScribe.AIContentGeneratorApi
 
   require Logger
 
+  @common_words ~w(I What Who Where When Why How Can Could Would Should Tell Show Find Get Check The This That And But For With About From Your My His Her Their Our Its Also Just Ask Has Have Had Been Being Will)
+
   @doc """
   Processes a user message: extracts @mentions, searches CRMs for contacts,
-  builds context, and generates an AI response.
+  fetches relevant meeting transcripts, builds context, and generates an AI response.
 
   Returns {:ok, %{content: String.t(), metadata: map()}} or {:error, reason}
   """
@@ -22,10 +25,13 @@ defmodule SocialScribe.Chat.ChatAI do
     credentials = get_user_crm_credentials(user_id)
 
     # Fetch contact data for all @mentions
-    {contacts, sources} = fetch_mentioned_contacts(mentions, credentials)
+    {contacts, crm_sources} = fetch_mentioned_contacts(mentions, credentials)
 
-    # Build the prompt
-    messages = build_chat_messages(user_message, conversation_messages, contacts)
+    # Fetch meetings where mentioned contacts participated
+    {meeting_context, meeting_sources} = fetch_relevant_meetings(mentions, user_id)
+
+    # Build the prompt with both CRM and meeting context
+    messages = build_chat_messages(user_message, conversation_messages, contacts, meeting_context)
 
     case AIContentGeneratorApi.chat_completion(messages) do
       {:ok, response} ->
@@ -33,7 +39,7 @@ defmodule SocialScribe.Chat.ChatAI do
          %{
            content: response,
            metadata: %{
-             "sources" => sources,
+             "sources" => crm_sources ++ meeting_sources,
              "mentions" => mentions
            }
          }}
@@ -46,11 +52,30 @@ defmodule SocialScribe.Chat.ChatAI do
   @doc """
   Extracts @Name patterns from message text.
   Supports "@First Last" and "@First" patterns.
+  Falls back to detecting capitalized names when no @mentions are found.
   """
   def extract_mentions(text) do
-    ~r/@([A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)?)/
+    at_mentions =
+      ~r/@([A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)?)/
+      |> Regex.scan(text)
+      |> Enum.map(fn [_full, name] -> String.trim(name) end)
+      |> Enum.uniq()
+
+    if Enum.empty?(at_mentions) do
+      extract_names_fallback(text)
+    else
+      at_mentions
+    end
+  end
+
+  defp extract_names_fallback(text) do
+    ~r/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b/
     |> Regex.scan(text)
     |> Enum.map(fn [_full, name] -> String.trim(name) end)
+    |> Enum.reject(fn name ->
+      first_word = name |> String.split() |> List.first()
+      first_word in @common_words
+    end)
     |> Enum.uniq()
   end
 
@@ -104,6 +129,55 @@ defmodule SocialScribe.Chat.ChatAI do
     {contacts, sources}
   end
 
+  @doc """
+  Fetches meetings where any of the mentioned names appear as participants.
+  Returns {meeting_context_string, meeting_sources_list}.
+  """
+  def fetch_relevant_meetings([], _user_id), do: {"", []}
+
+  def fetch_relevant_meetings(mentions, user_id) do
+    meetings = Meetings.list_user_meetings_by_user_id(user_id)
+
+    matching_meetings =
+      meetings
+      |> Enum.filter(fn meeting ->
+        Enum.any?(meeting.meeting_participants, fn participant ->
+          Enum.any?(mentions, fn mention ->
+            participant.name &&
+              String.contains?(
+                String.downcase(participant.name),
+                String.downcase(mention)
+              )
+          end)
+        end)
+      end)
+      |> Enum.take(5)
+
+    meeting_context =
+      matching_meetings
+      |> Enum.map(fn meeting ->
+        case Meetings.generate_prompt_for_meeting(meeting) do
+          {:ok, prompt} -> prompt
+          {:error, _} -> nil
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.join("\n---\n")
+
+    meeting_sources =
+      Enum.map(matching_meetings, fn meeting ->
+        %{
+          "type" => "meeting",
+          "title" => meeting.title,
+          "date" =>
+            if(meeting.recorded_at, do: Date.to_string(DateTime.to_date(meeting.recorded_at))),
+          "meeting_id" => meeting.id
+        }
+      end)
+
+    {meeting_context, meeting_sources}
+  end
+
   defp search_crm(:hubspot, credential, query) do
     HubspotApi.search_contacts(credential, query)
   end
@@ -112,8 +186,8 @@ defmodule SocialScribe.Chat.ChatAI do
     SalesforceApi.search_contacts(credential, query)
   end
 
-  defp build_chat_messages(user_message, conversation_history, contacts) do
-    system_prompt = build_system_prompt(contacts)
+  defp build_chat_messages(user_message, conversation_history, contacts, meeting_context) do
+    system_prompt = build_system_prompt(contacts, meeting_context)
 
     history =
       conversation_history
@@ -126,31 +200,47 @@ defmodule SocialScribe.Chat.ChatAI do
       [%{role: "user", content: user_message}]
   end
 
-  defp build_system_prompt(contacts) do
+  defp build_system_prompt(contacts, meeting_context) do
     base = """
     You are an AI assistant for Social Scribe, a meeting transcription and CRM platform.
     You help users with questions about their CRM contacts and meeting data.
     Be helpful, concise, and accurate. If you don't have enough information to answer,
-    say so clearly.
+    say so clearly. If the user asks about a contact but no CRM data was found,
+    suggest they try using @Name format (e.g., @John Smith) to look up a specific contact.
     """
 
-    if Enum.any?(contacts) do
-      contact_info =
-        contacts
-        |> Enum.map(&format_contact_for_prompt/1)
-        |> Enum.join("\n\n")
+    prompt =
+      if Enum.any?(contacts) do
+        contact_info =
+          contacts
+          |> Enum.map(&format_contact_for_prompt/1)
+          |> Enum.join("\n\n")
 
+        """
+        #{base}
+
+        The following CRM contact data is available for this conversation:
+
+        #{contact_info}
+
+        Use this data to answer the user's questions. Reference specific field values when relevant.
+        """
+      else
+        base
+      end
+
+    if meeting_context != "" do
       """
-      #{base}
+      #{prompt}
 
-      The following CRM contact data is available for this conversation:
+      The following meeting transcript data is available:
 
-      #{contact_info}
+      #{meeting_context}
 
-      Use this data to answer the user's questions. Reference specific field values when relevant.
+      When answering, reference specific meeting dates and what participants said.
       """
     else
-      base
+      prompt
     end
   end
 

@@ -124,9 +124,16 @@ defmodule SocialScribe.Meetings do
   Lists all processed meetings for a user.
   """
   def list_user_meetings(user) do
+    list_user_meetings_by_user_id(user.id)
+  end
+
+  @doc """
+  Lists all processed meetings for a user by user_id.
+  """
+  def list_user_meetings_by_user_id(user_id) do
     from(m in Meeting,
       join: ce in assoc(m, :calendar_event),
-      where: ce.user_id == ^user.id,
+      where: ce.user_id == ^user_id,
       order_by: [desc: m.recorded_at],
       preload: [:meeting_transcript, :meeting_participants, :recall_bot]
     )

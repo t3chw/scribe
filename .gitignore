@@ -46,6 +46,7 @@ fly.toml
 # Claude Code instructions (local development only)
 CLAUDE.md
 DEPLOYMENT.md
+TESTING_GUIDE.md
 
 # IDE / editor
 .elixir_ls/

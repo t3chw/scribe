@@ -2,6 +2,7 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
   use SocialScribeWeb, :live_component
 
   alias SocialScribe.Chat
+  alias SocialScribe.Accounts
 
   @impl true
   def render(assigns) do
@@ -83,6 +84,7 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
           input_value={@input_value}
           myself={@myself}
           conversation={@conversation}
+          connected_sources={@connected_sources}
         />
       <% else %>
         <.history_tab conversations={@conversations} myself={@myself} />
@@ -96,6 +98,7 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
   attr :input_value, :string, required: true
   attr :myself, :any, required: true
   attr :conversation, :any, required: true
+  attr :connected_sources, :list, required: true
 
   defp chat_tab(assigns) do
     ~H"""
@@ -120,7 +123,7 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
               </svg>
             </div>
             <p class="text-sm text-slate-500 text-center">
-              I can answer questions about Jump meetings and data - just ask!
+              I can answer questions about your meetings and data - just ask!
             </p>
           </div>
         <% else %>
@@ -132,21 +135,26 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
             <div class={["flex", if(message.role == "user", do: "justify-end", else: "justify-start")]}>
               <%= if message.role == "user" do %>
                 <div class="max-w-[85%] rounded-2xl rounded-br-md px-4 py-2.5 text-sm bg-[#f1f3f4] text-slate-800">
-                  <div class="whitespace-pre-wrap break-words">{message.content}</div>
+                  <div class="whitespace-pre-wrap break-words">
+                    <%= for segment <- parse_user_message_segments(message.content) do %>
+                      <.render_segment segment={segment} />
+                    <% end %>
+                  </div>
                 </div>
               <% else %>
                 <div class="max-w-[85%] text-sm text-slate-800">
-                  <div class="whitespace-pre-wrap break-words">{message.content}</div>
+                  <div class="whitespace-pre-wrap break-words">
+                    <%= for segment <- parse_ai_message_segments(message.content, message.metadata["mentions"]) do %>
+                      <.render_segment segment={segment} />
+                    <% end %>
+                  </div>
                   <%= if message.metadata["sources"] && Enum.any?(message.metadata["sources"]) do %>
-                    <div class="mt-2 flex items-center gap-2 flex-wrap">
+                    <div class="mt-2 flex items-center gap-1.5">
+                      <span class="text-xs text-teal-600 font-medium">Sources</span>
                       <span
                         :for={source <- message.metadata["sources"]}
-                        class="inline-flex items-center gap-1.5 text-xs text-slate-500"
+                        class={["w-4 h-4 rounded-full flex-shrink-0", source_dot_color(source)]}
                       >
-                        <span class="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-medium text-slate-600 flex-shrink-0">
-                          {String.at(source["name"] || "", 0)}
-                        </span>
-                        {source["name"]}
                       </span>
                     </div>
                   <% end %>
@@ -211,21 +219,12 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
               phx-target={@myself}
             ></textarea>
             <div class="flex items-center justify-between px-3 pb-2">
-              <div class="flex items-center gap-1">
-                <span class="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center">
-                  <svg
-                    class="w-3 h-3 text-slate-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    stroke-width="2"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-2.813a4.5 4.5 0 00-6.364-6.364L4.5 8.25"
-                    />
-                  </svg>
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs text-teal-600 font-medium">Sources</span>
+                <span
+                  :for={source <- @connected_sources}
+                  class={["w-4 h-4 rounded-full", connected_source_color(source)]}
+                >
                 </span>
               </div>
               <button
@@ -252,6 +251,41 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
         </form>
       </div>
     </div>
+    """
+  end
+
+  attr :segment, :any, required: true
+
+  defp render_segment(%{segment: {:mention, name}} = assigns) do
+    assigns = assign(assigns, :name, name)
+
+    ~H"""
+    <span class="inline-flex items-center gap-0.5 align-middle">
+      <span class="w-4 h-4 rounded-full bg-slate-300 inline-flex items-center justify-center">
+        <svg
+          class="w-2.5 h-2.5 text-slate-600"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          stroke-width="2"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+          />
+        </svg>
+      </span>
+      <span class="font-medium">{@name}</span>
+    </span>
+    """
+  end
+
+  defp render_segment(%{segment: {:text, text}} = assigns) do
+    assigns = assign(assigns, :text, text)
+
+    ~H"""
+    {@text}
     """
   end
 
@@ -310,6 +344,9 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
       |> assign_new(:conversation, fn -> nil end)
       |> assign_new(:loading, fn -> false end)
       |> assign_new(:input_value, fn -> "" end)
+      |> assign_new(:connected_sources, fn ->
+        get_connected_sources(assigns[:current_user])
+      end)
 
     {:ok, socket}
   end
@@ -377,6 +414,8 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
     end
   end
 
+  # --- Private Helpers ---
+
   defp ensure_conversation(socket, message) do
     case socket.assigns.conversation do
       nil ->
@@ -393,6 +432,24 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
       conversation ->
         {conversation, socket}
     end
+  end
+
+  defp get_connected_sources(nil), do: [:meetings]
+
+  defp get_connected_sources(current_user) do
+    sources = [:meetings]
+
+    sources =
+      if Accounts.get_user_hubspot_credential(current_user.id),
+        do: sources ++ [:hubspot],
+        else: sources
+
+    sources =
+      if Accounts.get_user_salesforce_credential(current_user.id),
+        do: sources ++ [:salesforce],
+        else: sources
+
+    sources
   end
 
   defp show_timestamp?(message, idx, messages) do
@@ -428,4 +485,39 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
   end
 
   defp format_timestamp(_), do: ""
+
+  @doc false
+  def parse_user_message_segments(content) do
+    parts =
+      Regex.split(~r/(@[A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)?)/, content, include_captures: true)
+
+    Enum.map(parts, fn part ->
+      if Regex.match?(~r/^@[A-Z]/, part),
+        do: {:mention, String.trim_leading(part, "@")},
+        else: {:text, part}
+    end)
+  end
+
+  @doc false
+  def parse_ai_message_segments(content, mentions)
+      when is_list(mentions) and mentions != [] do
+    pattern = mentions |> Enum.map(&Regex.escape/1) |> Enum.join("|")
+    regex = Regex.compile!("\\b(#{pattern})\\b")
+    parts = Regex.split(regex, content, include_captures: true)
+
+    Enum.map(parts, fn part ->
+      if part in mentions, do: {:mention, part}, else: {:text, part}
+    end)
+  end
+
+  def parse_ai_message_segments(content, _), do: [{:text, content}]
+
+  defp source_dot_color(%{"crm" => "hubspot"}), do: "bg-orange-500"
+  defp source_dot_color(%{"crm" => "salesforce"}), do: "bg-blue-500"
+  defp source_dot_color(%{"type" => "meeting"}), do: "bg-slate-800"
+  defp source_dot_color(_), do: "bg-slate-400"
+
+  defp connected_source_color(:meetings), do: "bg-slate-800"
+  defp connected_source_color(:hubspot), do: "bg-orange-500"
+  defp connected_source_color(:salesforce), do: "bg-blue-500"
 end

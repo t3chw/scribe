@@ -116,6 +116,27 @@ defmodule SocialScribe.MeetingsTest do
                  :meeting_participants
                ])
     end
+
+    test "list_user_meetings_by_user_id/1 returns all meetings for a user by user_id" do
+      user = user_fixture()
+      calendar_event = calendar_event_fixture(%{user_id: user.id})
+      recall_bot = recall_bot_fixture(%{calendar_event_id: calendar_event.id, user_id: user.id})
+
+      meeting =
+        meeting_fixture(%{calendar_event_id: calendar_event.id, recall_bot_id: recall_bot.id})
+
+      assert Meetings.list_user_meetings_by_user_id(user.id) ==
+               Repo.preload([meeting], [
+                 :meeting_transcript,
+                 :meeting_participants,
+                 :recall_bot
+               ])
+    end
+
+    test "list_user_meetings_by_user_id/1 returns empty for user with no meetings" do
+      user = user_fixture()
+      assert Meetings.list_user_meetings_by_user_id(user.id) == []
+    end
   end
 
   describe "meeting_transcripts" do

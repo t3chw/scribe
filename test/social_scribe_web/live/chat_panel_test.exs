@@ -46,13 +46,40 @@ defmodule SocialScribeWeb.ChatPanelTest do
       render_click(view, "toggle_chat")
       html = render(view)
 
-      assert html =~ "I can answer questions about Jump meetings and data"
+      assert html =~ "I can answer questions about your meetings and data"
     end
 
     test "chat panel renders on meetings page too", %{conn: conn} do
       {:ok, _view, html} = live(conn, ~p"/dashboard/settings")
 
       assert html =~ "Ask Anything"
+    end
+
+    test "chat panel shows Sources label in input area", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      render_click(view, "toggle_chat")
+      html = render(view)
+
+      assert html =~ "Sources"
+    end
+
+    test "chat panel shows meetings source dot by default", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      render_click(view, "toggle_chat")
+      html = render(view)
+
+      assert html =~ "bg-slate-800"
+    end
+
+    test "chat panel shows @ Add context label", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+      render_click(view, "toggle_chat")
+      html = render(view)
+
+      assert html =~ "@ Add context"
     end
   end
 end
