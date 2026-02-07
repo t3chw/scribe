@@ -141,6 +141,51 @@ defmodule SocialScribe.HubspotApi do
     end
   end
 
+  @doc """
+  Lists all contacts from HubSpot, paginating up to 500 contacts.
+  Used for syncing contacts to the local CRM contacts table.
+  """
+  def list_contacts(%UserCredential{} = credential) do
+    with_token_refresh(credential, fn cred ->
+      fetch_all_contacts(cred, nil, [], 0)
+    end)
+  end
+
+  defp fetch_all_contacts(_cred, _after_cursor, acc, count) when count >= 500 do
+    {:ok, acc}
+  end
+
+  defp fetch_all_contacts(cred, after_cursor, acc, _count) do
+    properties_param = Enum.join(@contact_properties, ",")
+
+    url =
+      case after_cursor do
+        nil ->
+          "/crm/v3/objects/contacts?limit=100&properties=#{properties_param}"
+
+        cursor ->
+          "/crm/v3/objects/contacts?limit=100&properties=#{properties_param}&after=#{cursor}"
+      end
+
+    case Tesla.get(client(cred.token), url) do
+      {:ok, %Tesla.Env{status: 200, body: body}} ->
+        results = Map.get(body, "results", [])
+        contacts = Enum.map(results, &format_contact/1) |> Enum.reject(&is_nil/1)
+        all_contacts = acc ++ contacts
+
+        case get_in(body, ["paging", "next", "after"]) do
+          nil -> {:ok, all_contacts}
+          next_cursor -> fetch_all_contacts(cred, next_cursor, all_contacts, length(all_contacts))
+        end
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, {:api_error, status, body}}
+
+      {:error, reason} ->
+        {:error, {:http_error, reason}}
+    end
+  end
+
   # Format a HubSpot contact response into a cleaner structure
   defp format_contact(%{"id" => id, "properties" => properties}) do
     %{

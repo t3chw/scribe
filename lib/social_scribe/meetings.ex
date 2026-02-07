@@ -141,6 +141,32 @@ defmodule SocialScribe.Meetings do
   end
 
   @doc """
+  Searches for participant names matching a query, scoped to user's meetings.
+  Returns a list of distinct participant names (max 5).
+  """
+  def search_user_participants(user_id, query) when is_binary(query) do
+    sanitized = "%#{sanitize_like(query)}%"
+
+    from(mp in MeetingParticipant,
+      join: m in assoc(mp, :meeting),
+      join: ce in assoc(m, :calendar_event),
+      where: ce.user_id == ^user_id,
+      where: ilike(mp.name, ^sanitized),
+      distinct: mp.name,
+      select: mp.name,
+      limit: 5
+    )
+    |> Repo.all()
+  end
+
+  defp sanitize_like(query) do
+    query
+    |> String.replace("\\", "\\\\")
+    |> String.replace("%", "\\%")
+    |> String.replace("_", "\\_")
+  end
+
+  @doc """
   Gets a meeting with its details preloaded.
 
   ## Examples

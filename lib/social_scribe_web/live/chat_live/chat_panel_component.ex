@@ -85,6 +85,7 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
           myself={@myself}
           conversation={@conversation}
           connected_sources={@connected_sources}
+          mention_suggestions={@mention_suggestions}
         />
       <% else %>
         <.history_tab conversations={@conversations} myself={@myself} />
@@ -99,6 +100,7 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
   attr :myself, :any, required: true
   attr :conversation, :any, required: true
   attr :connected_sources, :list, required: true
+  attr :mention_suggestions, :list, required: true
 
   defp chat_tab(assigns) do
     ~H"""
@@ -135,7 +137,7 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
             <div class={["flex", if(message.role == "user", do: "justify-end", else: "justify-start")]}>
               <%= if message.role == "user" do %>
                 <div class="max-w-[85%] rounded-2xl rounded-br-md px-4 py-2.5 text-sm bg-[#f1f3f4] text-slate-800">
-                  <div class="whitespace-pre-wrap break-words">
+                  <div class="break-words">
                     <%= for segment <- parse_user_message_segments(message.content) do %>
                       <.render_segment segment={segment} />
                     <% end %>
@@ -143,18 +145,25 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
                 </div>
               <% else %>
                 <div class="max-w-[85%] text-sm text-slate-800">
-                  <div class="whitespace-pre-wrap break-words">
+                  <div class="break-words">
                     <%= for segment <- parse_ai_message_segments(message.content, message.metadata["mentions"]) do %>
                       <.render_segment segment={segment} />
                     <% end %>
                   </div>
                   <%= if message.metadata["sources"] && Enum.any?(message.metadata["sources"]) do %>
-                    <div class="mt-2 flex items-center gap-1.5">
+                    <div class="mt-2 flex items-center gap-1.5 flex-wrap">
                       <span class="text-xs text-teal-600 font-medium">Sources</span>
                       <span
-                        :for={source <- message.metadata["sources"]}
-                        class={["w-4 h-4 rounded-full flex-shrink-0", source_dot_color(source)]}
+                        :for={source <- unique_source_types(message.metadata["sources"])}
+                        class="inline-flex items-center gap-1 text-xs text-slate-500"
+                        title={source_tooltip(source)}
                       >
+                        <span class={[
+                          "w-3 h-3 rounded-full flex-shrink-0",
+                          source_dot_color(source)
+                        ]}>
+                        </span>
+                        {source_label(source)}
                       </span>
                     </div>
                   <% end %>
@@ -207,6 +216,34 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
                 </svg>
                 @ Add context
               </span>
+            </div>
+            <div
+              :if={@mention_suggestions != []}
+              id="mention-suggestions"
+              class="mx-3 mb-1 border border-slate-200 rounded-lg bg-white shadow-lg max-h-40 overflow-y-auto"
+              phx-click-away="clear_mentions"
+              phx-target={@myself}
+            >
+              <button
+                :for={{suggestion, idx} <- Enum.with_index(@mention_suggestions)}
+                type="button"
+                id={"mention-suggestion-#{idx}"}
+                class="w-full px-3 py-2 text-left text-sm hover:bg-slate-100 flex items-center gap-2"
+                phx-click="select_mention"
+                phx-value-name={suggestion.name}
+                phx-target={@myself}
+                data-mention-index={idx}
+              >
+                <span class={[
+                  "w-3 h-3 rounded-full flex-shrink-0",
+                  mention_source_color(suggestion.source)
+                ]}>
+                </span>
+                <span class="truncate">{suggestion.name}</span>
+                <span class="text-xs text-slate-400 ml-auto">
+                  {mention_source_label(suggestion.source)}
+                </span>
+              </button>
             </div>
             <textarea
               id="chat-input"
@@ -282,11 +319,18 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
   end
 
   defp render_segment(%{segment: {:text, text}} = assigns) do
-    assigns = assign(assigns, :text, text)
+    assigns = assign(assigns, :html, text_to_html(text))
 
     ~H"""
-    {@text}
+    {Phoenix.HTML.raw(@html)}
     """
+  end
+
+  defp text_to_html(text) do
+    text
+    |> Phoenix.HTML.html_escape()
+    |> Phoenix.HTML.safe_to_string()
+    |> String.replace("\n", "<br>")
   end
 
   attr :timestamp, :any, required: true
@@ -347,6 +391,7 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
       |> assign_new(:connected_sources, fn ->
         get_connected_sources(assigns[:current_user])
       end)
+      |> assign_new(:mention_suggestions, fn -> [] end)
 
     {:ok, socket}
   end
@@ -387,6 +432,45 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
          messages: conversation.messages
        )}
     end
+  end
+
+  @impl true
+  def handle_event("search_mentions", %{"query" => query}, socket) do
+    suggestions =
+      if String.length(String.trim(query)) >= 1 do
+        user_id = socket.assigns.current_user.id
+
+        # Meeting participants (existing, fast local query)
+        meeting_names = SocialScribe.Meetings.search_user_participants(user_id, query)
+        meeting_suggestions = Enum.map(meeting_names, &%{name: &1, source: "meetings"})
+
+        # CRM contacts (new, fast local query)
+        crm_suggestions = SocialScribe.CRM.search_contacts(user_id, query, 5)
+
+        # Merge, dedup by name (meetings first), cap at 8
+        (meeting_suggestions ++ crm_suggestions)
+        |> Enum.uniq_by(& &1.name)
+        |> Enum.take(8)
+      else
+        []
+      end
+
+    {:noreply, assign(socket, :mention_suggestions, suggestions)}
+  end
+
+  @impl true
+  def handle_event("clear_mentions", _params, socket) do
+    {:noreply, assign(socket, :mention_suggestions, [])}
+  end
+
+  @impl true
+  def handle_event("select_mention", %{"name" => name}, socket) do
+    socket =
+      socket
+      |> assign(:mention_suggestions, [])
+      |> push_event("mention_selected", %{name: name})
+
+    {:noreply, socket}
   end
 
   @impl true
@@ -491,10 +575,15 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
     parts =
       Regex.split(~r/(@[A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)?)/, content, include_captures: true)
 
-    Enum.map(parts, fn part ->
+    parts
+    |> Enum.map(fn part ->
       if Regex.match?(~r/^@[A-Z]/, part),
         do: {:mention, String.trim_leading(part, "@")},
         else: {:text, part}
+    end)
+    |> Enum.reject(fn
+      {:text, t} -> String.trim(t) == ""
+      _ -> false
     end)
   end
 
@@ -505,8 +594,13 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
     regex = Regex.compile!("\\b(#{pattern})\\b")
     parts = Regex.split(regex, content, include_captures: true)
 
-    Enum.map(parts, fn part ->
+    parts
+    |> Enum.map(fn part ->
       if part in mentions, do: {:mention, part}, else: {:text, part}
+    end)
+    |> Enum.reject(fn
+      {:text, t} -> String.trim(t) == ""
+      _ -> false
     end)
   end
 
@@ -517,7 +611,38 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
   defp source_dot_color(%{"type" => "meeting"}), do: "bg-slate-800"
   defp source_dot_color(_), do: "bg-slate-400"
 
+  defp unique_source_types(sources) do
+    Enum.uniq_by(sources, fn
+      %{"crm" => crm} -> "crm:#{crm}"
+      %{"type" => type} -> "type:#{type}"
+      _ -> "unknown"
+    end)
+  end
+
+  defp source_label(%{"crm" => "hubspot"}), do: "HubSpot"
+  defp source_label(%{"crm" => "salesforce"}), do: "Salesforce"
+  defp source_label(%{"type" => "meeting"}), do: "Meetings"
+  defp source_label(_), do: "Other"
+
+  defp source_tooltip(%{"type" => "meeting", "title" => title, "date" => date}),
+    do: "#{title} (#{date})"
+
+  defp source_tooltip(%{"crm" => crm, "name" => name}),
+    do: "#{String.capitalize(crm)}: #{name}"
+
+  defp source_tooltip(_), do: nil
+
   defp connected_source_color(:meetings), do: "bg-slate-800"
   defp connected_source_color(:hubspot), do: "bg-orange-500"
   defp connected_source_color(:salesforce), do: "bg-blue-500"
+
+  defp mention_source_color("meetings"), do: "bg-slate-800"
+  defp mention_source_color("hubspot"), do: "bg-orange-500"
+  defp mention_source_color("salesforce"), do: "bg-blue-500"
+  defp mention_source_color(_), do: "bg-slate-400"
+
+  defp mention_source_label("meetings"), do: "Meetings"
+  defp mention_source_label("hubspot"), do: "HubSpot"
+  defp mention_source_label("salesforce"), do: "Salesforce"
+  defp mention_source_label(_), do: "Other"
 end

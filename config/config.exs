@@ -22,7 +22,8 @@ config :social_scribe, Oban,
      crontab: [
        {"*/2 * * * *", SocialScribe.Workers.BotStatusPoller},
        {"*/5 * * * *", SocialScribe.Workers.HubspotTokenRefresher},
-       {"*/5 * * * *", SocialScribe.Workers.SalesforceTokenRefresher}
+       {"*/5 * * * *", SocialScribe.Workers.SalesforceTokenRefresher},
+       {"*/30 * * * *", SocialScribe.Workers.CRMContactSyncer}
      ]}
   ]
 
@@ -107,6 +108,11 @@ config :ueberauth, Ueberauth,
          default_scope: "api refresh_token offline_access"
        ]}
   ]
+
+config :social_scribe, :crm_providers, [
+  %{name: "hubspot", api_config_key: :hubspot_api},
+  %{name: "salesforce", api_config_key: :salesforce_api}
+]
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

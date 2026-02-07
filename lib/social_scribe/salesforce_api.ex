@@ -168,6 +168,31 @@ defmodule SocialScribe.SalesforceApi do
   end
 
   @doc """
+  Lists contacts from Salesforce, up to 500 contacts ordered by last modified.
+  Used for syncing contacts to the local CRM contacts table.
+  """
+  def list_contacts(%UserCredential{} = credential) do
+    with_token_refresh(credential, fn cred ->
+      instance_url = get_instance_url(cred)
+      fields = Enum.join(@contact_fields, ",")
+      soql = "SELECT #{fields} FROM Contact ORDER BY LastModifiedDate DESC LIMIT 500"
+      url = "/query/?q=#{URI.encode(soql)}"
+
+      case Tesla.get(client(cred.token, instance_url), url) do
+        {:ok, %Tesla.Env{status: 200, body: %{"records" => records}}} ->
+          contacts = records |> Enum.map(&format_contact/1) |> Enum.reject(&is_nil/1)
+          {:ok, contacts}
+
+        {:ok, %Tesla.Env{status: status, body: body}} ->
+          {:error, {:api_error, status, body}}
+
+        {:error, reason} ->
+          {:error, {:http_error, reason}}
+      end
+    end)
+  end
+
+  @doc """
   Formats a Salesforce contact response into a normalized structure.
   """
   def format_contact(%{"Id" => id} = contact) do

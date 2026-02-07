@@ -280,6 +280,120 @@ defmodule SocialScribe.MeetingsTest do
     end
   end
 
+  describe "search_user_participants/2" do
+    test "returns matching participant names" do
+      user = user_fixture()
+      calendar_event = calendar_event_fixture(%{user_id: user.id})
+      recall_bot = recall_bot_fixture(%{calendar_event_id: calendar_event.id, user_id: user.id})
+
+      meeting =
+        meeting_fixture(%{calendar_event_id: calendar_event.id, recall_bot_id: recall_bot.id})
+
+      meeting_participant_fixture(%{meeting_id: meeting.id, name: "Anita Prajapati"})
+      meeting_participant_fixture(%{meeting_id: meeting.id, name: "John Doe"})
+
+      results = Meetings.search_user_participants(user.id, "Ani")
+      assert results == ["Anita Prajapati"]
+    end
+
+    test "returns empty list for no match" do
+      user = user_fixture()
+      calendar_event = calendar_event_fixture(%{user_id: user.id})
+      recall_bot = recall_bot_fixture(%{calendar_event_id: calendar_event.id, user_id: user.id})
+
+      meeting =
+        meeting_fixture(%{calendar_event_id: calendar_event.id, recall_bot_id: recall_bot.id})
+
+      meeting_participant_fixture(%{meeting_id: meeting.id, name: "John Doe"})
+
+      results = Meetings.search_user_participants(user.id, "xyz")
+      assert results == []
+    end
+
+    test "deduplicates names across meetings" do
+      user = user_fixture()
+      calendar_event1 = calendar_event_fixture(%{user_id: user.id})
+
+      recall_bot1 =
+        recall_bot_fixture(%{calendar_event_id: calendar_event1.id, user_id: user.id})
+
+      meeting1 =
+        meeting_fixture(%{calendar_event_id: calendar_event1.id, recall_bot_id: recall_bot1.id})
+
+      calendar_event2 = calendar_event_fixture(%{user_id: user.id})
+
+      recall_bot2 =
+        recall_bot_fixture(%{calendar_event_id: calendar_event2.id, user_id: user.id})
+
+      meeting2 =
+        meeting_fixture(%{calendar_event_id: calendar_event2.id, recall_bot_id: recall_bot2.id})
+
+      meeting_participant_fixture(%{meeting_id: meeting1.id, name: "John Doe"})
+      meeting_participant_fixture(%{meeting_id: meeting2.id, name: "John Doe"})
+
+      results = Meetings.search_user_participants(user.id, "John")
+      assert results == ["John Doe"]
+    end
+
+    test "limits results to 5" do
+      user = user_fixture()
+      calendar_event = calendar_event_fixture(%{user_id: user.id})
+      recall_bot = recall_bot_fixture(%{calendar_event_id: calendar_event.id, user_id: user.id})
+
+      meeting =
+        meeting_fixture(%{calendar_event_id: calendar_event.id, recall_bot_id: recall_bot.id})
+
+      for i <- 1..7 do
+        meeting_participant_fixture(%{meeting_id: meeting.id, name: "Person #{i}"})
+      end
+
+      results = Meetings.search_user_participants(user.id, "Person")
+      assert length(results) == 5
+    end
+
+    test "scoped to user — does not return other users' participants" do
+      user1 = user_fixture()
+      user2 = user_fixture()
+
+      calendar_event1 = calendar_event_fixture(%{user_id: user1.id})
+
+      recall_bot1 =
+        recall_bot_fixture(%{calendar_event_id: calendar_event1.id, user_id: user1.id})
+
+      meeting1 =
+        meeting_fixture(%{calendar_event_id: calendar_event1.id, recall_bot_id: recall_bot1.id})
+
+      meeting_participant_fixture(%{meeting_id: meeting1.id, name: "Alice Smith"})
+
+      calendar_event2 = calendar_event_fixture(%{user_id: user2.id})
+
+      recall_bot2 =
+        recall_bot_fixture(%{calendar_event_id: calendar_event2.id, user_id: user2.id})
+
+      meeting2 =
+        meeting_fixture(%{calendar_event_id: calendar_event2.id, recall_bot_id: recall_bot2.id})
+
+      meeting_participant_fixture(%{meeting_id: meeting2.id, name: "Alice Johnson"})
+
+      results = Meetings.search_user_participants(user1.id, "Alice")
+      assert results == ["Alice Smith"]
+    end
+
+    test "is case-insensitive" do
+      user = user_fixture()
+      calendar_event = calendar_event_fixture(%{user_id: user.id})
+      recall_bot = recall_bot_fixture(%{calendar_event_id: calendar_event.id, user_id: user.id})
+
+      meeting =
+        meeting_fixture(%{calendar_event_id: calendar_event.id, recall_bot_id: recall_bot.id})
+
+      meeting_participant_fixture(%{meeting_id: meeting.id, name: "Anita Prajapati"})
+
+      results = Meetings.search_user_participants(user.id, "anita")
+      assert results == ["Anita Prajapati"]
+    end
+  end
+
   describe "create_meeting_from_recall_data/3" do
     import SocialScribe.MeetingInfoExample
     import SocialScribe.MeetingTranscriptExample

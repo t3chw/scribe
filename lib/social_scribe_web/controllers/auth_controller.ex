@@ -122,6 +122,12 @@ defmodule SocialScribeWeb.AuthController do
       {:ok, _credential} ->
         Logger.info("HubSpot account connected for user #{user.id}, hub_id: #{hub_id}")
 
+        SocialScribe.Workers.CRMContactSyncer.new(%{
+          "user_id" => user.id,
+          "provider" => "hubspot"
+        })
+        |> Oban.insert()
+
         conn
         |> put_flash(:info, "HubSpot account connected successfully!")
         |> redirect(to: ~p"/dashboard/settings")
@@ -161,6 +167,12 @@ defmodule SocialScribeWeb.AuthController do
     case Accounts.find_or_create_salesforce_credential(user, credential_attrs) do
       {:ok, _credential} ->
         Logger.info("Salesforce account connected for user #{user.id}, org_id: #{org_id}")
+
+        SocialScribe.Workers.CRMContactSyncer.new(%{
+          "user_id" => user.id,
+          "provider" => "salesforce"
+        })
+        |> Oban.insert()
 
         conn
         |> put_flash(:info, "Salesforce account connected successfully!")
