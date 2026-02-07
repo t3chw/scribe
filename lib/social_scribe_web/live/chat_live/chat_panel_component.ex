@@ -245,7 +245,7 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
                 </span>
               </button>
             </div>
-            <div class="relative">
+            <div id="chat-input-container" phx-update="ignore" class="relative">
               <div
                 id="chat-input-mirror"
                 aria-hidden="true"
@@ -256,7 +256,6 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
                 id="chat-input"
                 name="message"
                 rows="2"
-                value={@input_value}
                 placeholder="Ask anything about your meetings"
                 phx-hook="ChatInput"
                 class="absolute inset-0 w-full h-full resize-none border-0 px-3 py-2 text-sm focus:outline-none focus:ring-0 placeholder-slate-400 bg-transparent"

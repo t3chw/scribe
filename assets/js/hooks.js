@@ -37,6 +37,7 @@ Hooks.ChatInput = {
         this._syncMirror()
 
         this.el.addEventListener("keydown", (e) => {
+            // Mention dropdown navigation
             if (this.mentionActive) {
                 const suggestions = document.getElementById("mention-suggestions")
                 const items = suggestions ? suggestions.querySelectorAll("button") : []
@@ -78,14 +79,42 @@ Hooks.ChatInput = {
                 }
             }
 
+            // Backspace: delete whole @mention tag if cursor is right after one
+            if (e.key === "Backspace") {
+                const cursor = this.el.selectionStart
+                const selEnd = this.el.selectionEnd
+                // Only handle when there's no text selection (just a cursor)
+                if (cursor === selEnd && cursor > 0) {
+                    const val = this.el.value
+                    const before = val.substring(0, cursor)
+                    // Check if cursor is right after a mention: @Name or @First Last
+                    // Optionally with a trailing space
+                    const mentionMatch = before.match(/@[A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)?\s?$/)
+                    if (mentionMatch) {
+                        e.preventDefault()
+                        const mentionStartIdx = cursor - mentionMatch[0].length
+                        const after = val.substring(cursor)
+                        this.el.value = val.substring(0, mentionStartIdx) + after
+                        this.el.selectionStart = mentionStartIdx
+                        this.el.selectionEnd = mentionStartIdx
+                        this._syncMirror()
+                        return
+                    }
+                }
+            }
+
+            // Enter to send message
             if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault()
                 const form = this.el.closest("form")
                 if (form) {
                     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
                 }
-                // Clear mirror after sending
-                setTimeout(() => this._syncMirror(), 0)
+                // Clear textarea and mirror after sending
+                setTimeout(() => {
+                    this.el.value = ""
+                    this._syncMirror()
+                }, 0)
             }
         })
 
@@ -102,13 +131,11 @@ Hooks.ChatInput = {
                     atIdx = i
                     break
                 }
-                // Stop if we hit a space before finding text (except spaces within a name)
                 if (val[i] === "\n") break
             }
 
             if (atIdx >= 0) {
                 const query = val.substring(atIdx + 1, cursor)
-                // Only activate if query has no newlines and is reasonable length
                 if (query.length >= 1 && query.length <= 50 && !query.includes("\n")) {
                     this.mentionActive = true
                     this.mentionStart = atIdx
@@ -135,7 +162,7 @@ Hooks.ChatInput = {
             const newVal = before + "@" + name + " " + after
             this.el.value = newVal
 
-            const newCursor = before.length + name.length + 2 // @name + space
+            const newCursor = before.length + name.length + 2
             this.el.selectionStart = newCursor
             this.el.selectionEnd = newCursor
             this.el.focus()
@@ -147,7 +174,7 @@ Hooks.ChatInput = {
             this._syncMirror()
         })
 
-        // Sync scroll position between textarea and mirror
+        // Sync scroll between textarea and mirror
         this.el.addEventListener("scroll", () => {
             if (this.mirror) {
                 this.mirror.scrollTop = this.el.scrollTop
@@ -162,18 +189,6 @@ Hooks.ChatInput = {
             this.mirror.innerHTML = ""
             return
         }
-
-        // Replace @Mentions with styled chips, escape HTML for the rest
-        const html = val.replace(/(@[A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)?)/g, (match) => {
-            const name = match.substring(1) // remove @
-            const escaped = name.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-            return '<span class="inline-flex items-center bg-slate-200 rounded-full px-1.5 py-0 text-sm font-medium text-slate-800">' +
-                '<svg class="w-3 h-3 mr-0.5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>' +
-                escaped + '</span>'
-        })
-
-        // Escape remaining HTML (but preserve our spans)
-        // We need to escape first, then replace - let's do it differently
         this.mirror.innerHTML = this._buildMirrorHtml(val)
     },
 
@@ -184,11 +199,9 @@ Hooks.ChatInput = {
         let match
 
         while ((match = mentionRegex.exec(text)) !== null) {
-            // Escape text before the mention
             const before = text.substring(lastIndex, match.index)
             result += this._escapeHtml(before)
 
-            // Build mention chip
             const name = match[0].substring(1)
             result += '<span class="inline-flex items-center bg-slate-200 rounded-full px-1.5 text-sm font-medium text-slate-800">' +
                 '<svg class="w-3 h-3 mr-0.5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>' +
@@ -197,12 +210,10 @@ Hooks.ChatInput = {
             lastIndex = match.index + match[0].length
         }
 
-        // Escape remaining text
         result += this._escapeHtml(text.substring(lastIndex))
 
-        // Add trailing newline to match textarea behavior
-        if (text.endsWith("\n") || text.endsWith("\n\n")) {
-            result += "\n"
+        if (text.endsWith("\n")) {
+            result += "<br>"
         }
 
         return result
