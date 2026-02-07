@@ -245,17 +245,18 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
                 </span>
               </button>
             </div>
-            <div id="chat-input-container" phx-update="ignore" class="relative">
+            <div id="chat-input-container" phx-update="ignore" class="relative" style="min-height: 5rem;">
               <div
                 id="chat-input-mirror"
                 aria-hidden="true"
                 class="w-full px-3 py-2 text-sm whitespace-pre-wrap break-words pointer-events-none"
+                style="min-height: 5rem;"
               >
               </div>
               <textarea
                 id="chat-input"
                 name="message"
-                rows="2"
+                rows="4"
                 placeholder="Ask anything about your meetings"
                 phx-hook="ChatInput"
                 class="absolute inset-0 w-full h-full resize-none border-0 px-3 py-2 text-sm focus:outline-none focus:ring-0 placeholder-slate-400 bg-transparent"

@@ -202,10 +202,9 @@ Hooks.ChatInput = {
             const before = text.substring(lastIndex, match.index)
             result += this._escapeHtml(before)
 
-            const name = match[0].substring(1)
-            result += '<span class="inline-flex items-center bg-slate-200 rounded-full px-1.5 text-sm font-medium text-slate-800">' +
-                '<svg class="w-3 h-3 mr-0.5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>' +
-                this._escapeHtml(name) + '</span>'
+            // Keep exact same text (including @) — just add background highlight
+            result += '<span class="bg-slate-200 rounded">' +
+                this._escapeHtml(match[0]) + '</span>'
 
             lastIndex = match.index + match[0].length
         }
