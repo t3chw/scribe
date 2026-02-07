@@ -370,10 +370,19 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
   defp timestamp_separator(assigns) do
     ~H"""
     <div class="flex items-center justify-center py-1">
-      <span class="text-xs text-slate-400">{format_timestamp(@timestamp)}</span>
+      <span
+        class="text-xs text-slate-400"
+        phx-hook="LocalTime"
+        id={"ts-#{System.unique_integer([:positive])}"}
+        data-utc={to_iso8601(@timestamp)}
+      >
+      </span>
     </div>
     """
   end
+
+  defp to_iso8601(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
+  defp to_iso8601(_), do: ""
 
   attr :conversations, :list, required: true
   attr :myself, :any, required: true
@@ -580,27 +589,6 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
           DateTime.diff(message.inserted_at, prev.inserted_at, :minute) > 5
     end
   end
-
-  defp format_timestamp(nil), do: ""
-
-  defp format_timestamp(%DateTime{} = dt) do
-    hour = dt.hour
-    minute = dt.minute
-
-    {h12, ampm} =
-      if hour >= 12,
-        do: {if(hour > 12, do: hour - 12, else: 12), "pm"},
-        else: {if(hour == 0, do: 12, else: hour), "am"}
-
-    months =
-      ~w(January February March April May June July August September October November December)
-
-    month_name = Enum.at(months, dt.month - 1)
-
-    "#{h12}:#{String.pad_leading(Integer.to_string(minute), 2, "0")}#{ampm} - #{month_name} #{dt.day}, #{dt.year}"
-  end
-
-  defp format_timestamp(_), do: ""
 
   @doc false
   def parse_user_message_segments(content) do

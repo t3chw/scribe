@@ -237,4 +237,24 @@ Hooks.ChatInput = {
     }
 }
 
+Hooks.LocalTime = {
+    mounted() {
+        this._formatTime()
+    },
+    updated() {
+        this._formatTime()
+    },
+    _formatTime() {
+        const utc = this.el.dataset.utc
+        if (!utc) return
+        const date = new Date(utc)
+        const h = date.getHours()
+        const m = date.getMinutes().toString().padStart(2, "0")
+        const ampm = h >= 12 ? "pm" : "am"
+        const h12 = h % 12 || 12
+        const months = ["January","February","March","April","May","June","July","August","September","October","November","December"]
+        this.el.textContent = `${h12}:${m}${ampm} - ${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`
+    }
+}
+
 export default Hooks
