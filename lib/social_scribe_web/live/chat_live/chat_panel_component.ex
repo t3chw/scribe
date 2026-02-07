@@ -245,16 +245,25 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
                 </span>
               </button>
             </div>
-            <textarea
-              id="chat-input"
-              name="message"
-              rows="2"
-              value={@input_value}
-              placeholder="Ask anything about your meetings"
-              phx-hook="ChatInput"
-              class="w-full resize-none border-0 px-3 py-2 text-sm focus:outline-none focus:ring-0 placeholder-slate-400"
-              phx-target={@myself}
-            ></textarea>
+            <div class="relative">
+              <div
+                id="chat-input-mirror"
+                aria-hidden="true"
+                class="w-full px-3 py-2 text-sm whitespace-pre-wrap break-words pointer-events-none"
+              >
+              </div>
+              <textarea
+                id="chat-input"
+                name="message"
+                rows="2"
+                value={@input_value}
+                placeholder="Ask anything about your meetings"
+                phx-hook="ChatInput"
+                class="absolute inset-0 w-full h-full resize-none border-0 px-3 py-2 text-sm focus:outline-none focus:ring-0 placeholder-slate-400 bg-transparent"
+                style="color: transparent; caret-color: #1e293b;"
+                phx-target={@myself}
+              ></textarea>
+            </div>
             <div class="flex items-center justify-between px-3 pb-2">
               <div class="flex items-center gap-1.5">
                 <span class="text-xs text-teal-600 font-medium">Sources</span>

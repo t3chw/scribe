@@ -32,6 +32,9 @@ Hooks.ChatInput = {
         this.selectedIndex = -1
         this.savedValue = ""
         this.savedCursor = 0
+        this.mirror = document.getElementById("chat-input-mirror")
+
+        this._syncMirror()
 
         this.el.addEventListener("keydown", (e) => {
             if (this.mentionActive) {
@@ -81,12 +84,16 @@ Hooks.ChatInput = {
                 if (form) {
                     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
                 }
+                // Clear mirror after sending
+                setTimeout(() => this._syncMirror(), 0)
             }
         })
 
         this.el.addEventListener("input", (e) => {
             const val = this.el.value
             const cursor = this.el.selectionStart
+
+            this._syncMirror()
 
             // Find the last @ before the cursor
             let atIdx = -1
@@ -136,7 +143,77 @@ Hooks.ChatInput = {
             this.mentionActive = false
             this.mentionStart = -1
             this.selectedIndex = -1
+
+            this._syncMirror()
         })
+
+        // Sync scroll position between textarea and mirror
+        this.el.addEventListener("scroll", () => {
+            if (this.mirror) {
+                this.mirror.scrollTop = this.el.scrollTop
+            }
+        })
+    },
+
+    _syncMirror() {
+        if (!this.mirror) return
+        const val = this.el.value
+        if (!val) {
+            this.mirror.innerHTML = ""
+            return
+        }
+
+        // Replace @Mentions with styled chips, escape HTML for the rest
+        const html = val.replace(/(@[A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)?)/g, (match) => {
+            const name = match.substring(1) // remove @
+            const escaped = name.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+            return '<span class="inline-flex items-center bg-slate-200 rounded-full px-1.5 py-0 text-sm font-medium text-slate-800">' +
+                '<svg class="w-3 h-3 mr-0.5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>' +
+                escaped + '</span>'
+        })
+
+        // Escape remaining HTML (but preserve our spans)
+        // We need to escape first, then replace - let's do it differently
+        this.mirror.innerHTML = this._buildMirrorHtml(val)
+    },
+
+    _buildMirrorHtml(text) {
+        const mentionRegex = /@[A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)?/g
+        let result = ""
+        let lastIndex = 0
+        let match
+
+        while ((match = mentionRegex.exec(text)) !== null) {
+            // Escape text before the mention
+            const before = text.substring(lastIndex, match.index)
+            result += this._escapeHtml(before)
+
+            // Build mention chip
+            const name = match[0].substring(1)
+            result += '<span class="inline-flex items-center bg-slate-200 rounded-full px-1.5 text-sm font-medium text-slate-800">' +
+                '<svg class="w-3 h-3 mr-0.5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>' +
+                this._escapeHtml(name) + '</span>'
+
+            lastIndex = match.index + match[0].length
+        }
+
+        // Escape remaining text
+        result += this._escapeHtml(text.substring(lastIndex))
+
+        // Add trailing newline to match textarea behavior
+        if (text.endsWith("\n") || text.endsWith("\n\n")) {
+            result += "\n"
+        }
+
+        return result
+    },
+
+    _escapeHtml(text) {
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/\n/g, "<br>")
     },
 
     _highlightItem(items) {
