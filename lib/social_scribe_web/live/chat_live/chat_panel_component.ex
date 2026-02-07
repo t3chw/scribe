@@ -245,7 +245,12 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
                 </span>
               </button>
             </div>
-            <div id="chat-input-container" phx-update="ignore" class="relative" style="min-height: 5rem;">
+            <div
+              id="chat-input-container"
+              phx-update="ignore"
+              class="relative"
+              style="min-height: 5rem;"
+            >
               <div
                 id="chat-input-mirror"
                 aria-hidden="true"
@@ -339,7 +344,25 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
     text
     |> Phoenix.HTML.html_escape()
     |> Phoenix.HTML.safe_to_string()
+    |> markdown_to_html()
+  end
+
+  defp markdown_to_html(text) do
+    text
+    # Bold: **text** → <strong>text</strong>
+    |> String.replace(~r/\*\*(.+?)\*\*/, "<strong>\\1</strong>")
+    # Italic: *text* → <em>text</em> (but not bullet points)
+    |> String.replace(~r/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/, "<em>\\1</em>")
+    # Bullet points: lines starting with * or -
+    |> String.replace(~r/(?:^|\n)\* (.+?)(?=\n|$)/, "\n<li>\\1</li>")
+    |> String.replace(~r/(?:^|\n)- (.+?)(?=\n|$)/, "\n<li>\\1</li>")
+    # Wrap consecutive <li> in <ul>
+    |> String.replace(~r/((?:<li>.+?<\/li>\n?)+)/, "<ul class=\"list-disc pl-4 my-1\">\\1</ul>")
+    # Remaining newlines → <br>
     |> String.replace("\n", "<br>")
+    # Clean up extra <br> around lists
+    |> String.replace(~r/<br>\s*<ul/, "<ul")
+    |> String.replace(~r/<\/ul>\s*<br>/, "</ul>")
   end
 
   attr :timestamp, :any, required: true
