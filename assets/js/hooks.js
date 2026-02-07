@@ -30,6 +30,8 @@ Hooks.ChatInput = {
         this.mentionActive = false
         this.mentionStart = -1
         this.selectedIndex = -1
+        this.savedValue = ""
+        this.savedCursor = 0
 
         this.el.addEventListener("keydown", (e) => {
             if (this.mentionActive) {
@@ -46,6 +48,14 @@ Hooks.ChatInput = {
                     e.preventDefault()
                     this.selectedIndex = Math.max(this.selectedIndex - 1, 0)
                     this._highlightItem(items)
+                    return
+                }
+                if (e.key === "Tab") {
+                    e.preventDefault()
+                    const idx = this.selectedIndex >= 0 ? this.selectedIndex : 0
+                    if (items[idx]) {
+                        items[idx].click()
+                    }
                     return
                 }
                 if (e.key === "Enter") {
@@ -96,6 +106,8 @@ Hooks.ChatInput = {
                     this.mentionActive = true
                     this.mentionStart = atIdx
                     this.selectedIndex = -1
+                    this.savedValue = val
+                    this.savedCursor = cursor
                     this.pushEventTo(this.el, "search_mentions", { query: query })
                     return
                 }
@@ -110,9 +122,9 @@ Hooks.ChatInput = {
         })
 
         this.handleEvent("mention_selected", ({ name }) => {
-            const val = this.el.value
+            const val = this.savedValue || this.el.value
             const before = val.substring(0, this.mentionStart)
-            const after = val.substring(this.el.selectionStart)
+            const after = val.substring(this.savedCursor)
             const newVal = before + "@" + name + " " + after
             this.el.value = newVal
 
