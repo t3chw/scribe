@@ -18,16 +18,61 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
       <%!-- Header --%>
       <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-white">
         <h2 class="text-lg font-bold text-slate-900">Ask Anything</h2>
-        <button
-          type="button"
-          phx-click="toggle_chat"
-          class="text-slate-400 hover:text-slate-600 transition-colors"
-          aria-label="Close chat"
-        >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M6 5l7 7-7 7" />
-          </svg>
-        </button>
+        <div class="flex items-center gap-2">
+          <span
+            :if={@sync_status == :synced}
+            class="text-xs font-medium text-emerald-600 flex items-center gap-1"
+          >
+            <svg
+              class="w-3.5 h-3.5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              stroke-width="2.5"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+            Contacts synced
+          </span>
+          <button
+            type="button"
+            phx-click="sync_contacts"
+            phx-target={@myself}
+            disabled={@syncing}
+            class="text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50"
+            title="Sync CRM contacts"
+          >
+            <svg
+              class={["w-4 h-4", if(@syncing, do: "animate-spin", else: "")]}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M15.031 4.356v4.992"
+              />
+            </svg>
+          </button>
+          <button
+            type="button"
+            phx-click="toggle_chat"
+            class="text-slate-400 hover:text-slate-600 transition-colors"
+            aria-label="Close chat"
+          >
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              stroke-width="2"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M6 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <%!-- Tabs --%>
@@ -433,6 +478,8 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
         get_connected_sources(assigns[:current_user])
       end)
       |> assign_new(:mention_suggestions, fn -> [] end)
+      |> assign_new(:syncing, fn -> false end)
+      |> assign_new(:sync_status, fn -> nil end)
 
     {:ok, socket}
   end
@@ -512,6 +559,12 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
       |> push_event("mention_selected", %{name: name})
 
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("sync_contacts", _params, socket) do
+    send(self(), {:sync_crm_contacts, socket.assigns.current_user.id})
+    {:noreply, assign(socket, :syncing, true)}
   end
 
   @impl true

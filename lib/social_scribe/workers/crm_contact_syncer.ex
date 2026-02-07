@@ -51,15 +51,13 @@ defmodule SocialScribe.Workers.CRMContactSyncer do
   end
 
   defp sync_user_provider(user_id, provider) do
-    api_module = Application.get_env(:social_scribe, provider.api_config_key)
-
     case get_credential(user_id, provider.name) do
       nil ->
         Logger.debug("CRM contact sync: no #{provider.name} credential for user #{user_id}")
         :ok
 
       credential ->
-        case api_module.list_contacts(credential) do
+        case provider.behaviour_module.list_contacts(credential) do
           {:ok, contacts} ->
             CRM.upsert_contacts(user_id, provider.name, contacts)
 

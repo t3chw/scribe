@@ -7,6 +7,9 @@ defmodule SocialScribe.CRM do
 
   alias SocialScribe.Repo
   alias SocialScribe.CRM.CRMContact
+  alias SocialScribe.Accounts.UserCredential
+
+  require Logger
 
   @doc """
   Searches CRM contacts by display_name for a given user.
@@ -28,6 +31,30 @@ defmodule SocialScribe.CRM do
       }
     )
     |> Repo.all()
+  end
+
+  @doc """
+  Syncs CRM contacts from all connected providers for a user.
+  Fetches contacts from each provider's API and upserts them locally.
+  """
+  def sync_contacts_for_user(user_id) do
+    providers = Application.get_env(:social_scribe, :crm_providers, [])
+
+    Enum.each(providers, fn provider ->
+      credential = Repo.get_by(UserCredential, user_id: user_id, provider: provider.name)
+
+      if credential do
+        case provider.behaviour_module.list_contacts(credential) do
+          {:ok, contacts} ->
+            upsert_contacts(user_id, provider.name, contacts)
+
+          {:error, reason} ->
+            Logger.error("CRM sync failed for #{provider.name}: #{inspect(reason)}")
+        end
+      end
+    end)
+
+    :ok
   end
 
   @doc """
