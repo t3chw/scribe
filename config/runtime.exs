@@ -119,6 +119,7 @@ if config_env() == :prod do
       ip: {0, 0, 0, 0, 0, 0, 0, 0},
       port: port
     ],
+    check_origin: ["https://#{host}", "https://*.#{host}"],
     secret_key_base: secret_key_base
 
   config :ueberauth, Ueberauth.Strategy.Google.OAuth,
