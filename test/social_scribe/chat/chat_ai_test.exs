@@ -372,5 +372,146 @@ defmodule SocialScribe.Chat.ChatAITest do
       assert result.metadata["sources"] == []
       assert result.metadata["mentions"] == []
     end
+
+    test "follow-up message uses historical mentions for context" do
+      user = user_fixture()
+      _hub = hubspot_credential_fixture(%{user_id: user.id})
+      calendar_event = calendar_event_fixture(%{user_id: user.id})
+      recall_bot = recall_bot_fixture(%{calendar_event_id: calendar_event.id, user_id: user.id})
+
+      meeting =
+        meeting_fixture(%{
+          calendar_event_id: calendar_event.id,
+          recall_bot_id: recall_bot.id,
+          title: "Strategy Call"
+        })
+
+      _transcript =
+        meeting_transcript_fixture(%{
+          meeting_id: meeting.id,
+          content: %{
+            "data" => [
+              %{
+                "speaker" => "Anita Prajapati",
+                "words" => [%{"text" => "We should focus on growth", "start_timestamp" => 0.5}]
+              }
+            ]
+          }
+        })
+
+      _participant =
+        meeting_participant_fixture(%{
+          meeting_id: meeting.id,
+          name: "Anita Prajapati",
+          is_host: false
+        })
+
+      # Simulate conversation history where @Anita was mentioned in a prior user message
+      conversation_messages = [
+        %{role: "user", content: "@Anita Prajapati Tell me about her"},
+        %{role: "assistant", content: "Anita Prajapati is a contact in your CRM."}
+      ]
+
+      SocialScribe.HubspotApiMock
+      |> expect(:search_contacts, fn _cred, "Anita Prajapati" ->
+        {:ok,
+         [
+           %{
+             email: "anita@example.com",
+             display_name: "Anita Prajapati",
+             first_name: "Anita",
+             last_name: "Prajapati"
+           }
+         ]}
+      end)
+
+      SocialScribe.AIContentGeneratorMock
+      |> expect(:chat_completion, fn messages ->
+        system_msg = hd(messages)
+        assert system_msg.content =~ "meeting transcript data"
+        assert system_msg.content =~ "Strategy Call"
+        {:ok, "In the Strategy Call, Anita said the team should focus on growth."}
+      end)
+
+      # Follow-up message has no @mention, but historical mentions should be used
+      assert {:ok, result} =
+               ChatAI.process_message(
+                 "What did she say in the meeting?",
+                 user.id,
+                 conversation_messages
+               )
+
+      assert result.content =~ "Strategy Call"
+
+      meeting_sources =
+        Enum.filter(result.metadata["sources"], fn s -> s["type"] == "meeting" end)
+
+      assert length(meeting_sources) == 1
+      assert hd(meeting_sources)["title"] == "Strategy Call"
+
+      # Mentions should include the historical mention
+      assert "Anita Prajapati" in result.metadata["mentions"]
+    end
+
+    test "only user messages contribute historical mentions, not assistant messages" do
+      user = user_fixture()
+
+      # Conversation history where assistant mentions "Sarah Wilson" but user never did
+      conversation_messages = [
+        %{role: "user", content: "hello"},
+        %{role: "assistant", content: "Sarah Wilson is available in your CRM."}
+      ]
+
+      SocialScribe.AIContentGeneratorMock
+      |> expect(:chat_completion, fn _messages ->
+        {:ok, "How can I help you?"}
+      end)
+
+      # No CRM search should be triggered for "Sarah Wilson" since only assistant mentioned it
+      assert {:ok, result} =
+               ChatAI.process_message(
+                 "What else can you tell me?",
+                 user.id,
+                 conversation_messages
+               )
+
+      assert result.metadata["mentions"] == []
+    end
+
+    test "deduplicates mentions across current and historical messages" do
+      user = user_fixture()
+      _hub = hubspot_credential_fixture(%{user_id: user.id})
+
+      conversation_messages = [
+        %{role: "user", content: "@Tim what is his email?"}
+      ]
+
+      # Should only get ONE search call for "Tim", not two
+      SocialScribe.HubspotApiMock
+      |> expect(:search_contacts, fn _cred, "Tim" ->
+        {:ok,
+         [
+           %{
+             email: "tim@example.com",
+             display_name: "Tim Cook",
+             first_name: "Tim",
+             last_name: "Cook"
+           }
+         ]}
+      end)
+
+      SocialScribe.AIContentGeneratorMock
+      |> expect(:chat_completion, fn _messages ->
+        {:ok, "Tim Cook works at Apple."}
+      end)
+
+      # Current message also mentions @Tim — same as historical
+      assert {:ok, result} =
+               ChatAI.process_message("@Tim what is his role?", user.id, conversation_messages)
+
+      # "Tim" should appear only once in mentions
+      tim_count = Enum.count(result.metadata["mentions"], fn m -> m == "Tim" end)
+      assert tim_count == 1
+    end
   end
 end

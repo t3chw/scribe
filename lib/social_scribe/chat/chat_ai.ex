@@ -21,7 +21,9 @@ defmodule SocialScribe.Chat.ChatAI do
   Returns {:ok, %{content: String.t(), metadata: map()}} or {:error, reason}
   """
   def process_message(user_message, user_id, conversation_messages \\ []) do
-    mentions = extract_mentions(user_message)
+    current_mentions = extract_mentions(user_message)
+    historical_mentions = extract_historical_mentions(conversation_messages)
+    mentions = Enum.uniq(current_mentions ++ historical_mentions)
     credentials = get_user_crm_credentials(user_id)
 
     # Fetch contact data for all @mentions
@@ -66,6 +68,13 @@ defmodule SocialScribe.Chat.ChatAI do
     else
       at_mentions
     end
+  end
+
+  defp extract_historical_mentions(conversation_messages) do
+    conversation_messages
+    |> Enum.filter(fn msg -> msg.role == "user" end)
+    |> Enum.flat_map(fn msg -> extract_mentions(msg.content) end)
+    |> Enum.uniq()
   end
 
   defp extract_names_fallback(text) do
