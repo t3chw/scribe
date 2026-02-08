@@ -443,13 +443,11 @@ defmodule SocialScribe.Chat.ChatAITest do
 
       assert result.content =~ "Strategy Call"
 
-      meeting_sources =
-        Enum.filter(result.metadata["sources"], fn s -> s["type"] == "meeting" end)
+      # Sources are empty because the current message has no @mentions —
+      # the AI still has full context via conversation history + system prompt
+      assert result.metadata["sources"] == []
 
-      assert length(meeting_sources) == 1
-      assert hd(meeting_sources)["title"] == "Strategy Call"
-
-      # Mentions should include the historical mention
+      # Mentions should include the historical mention (used for name highlighting)
       assert "Anita Prajapati" in result.metadata["mentions"]
     end
 

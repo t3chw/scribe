@@ -22,17 +22,33 @@ defmodule SocialScribe.Chat.ChatAI do
   def process_message(user_message, user_id, conversation_messages \\ []) do
     current_mentions = extract_mentions(user_message)
     historical_mentions = extract_historical_mentions(conversation_messages)
-    mentions = Enum.uniq(current_mentions ++ historical_mentions)
+    all_mentions = Enum.uniq(current_mentions ++ historical_mentions)
     credentials = get_user_crm_credentials(user_id)
 
-    # Fetch contact data for all @mentions
-    {contacts, crm_sources} = fetch_mentioned_contacts(mentions, credentials)
+    # Fetch contact data for all mentions (current + historical) so the AI has full context
+    {contacts, crm_sources} = fetch_mentioned_contacts(all_mentions, credentials)
 
-    # Fetch meetings where mentioned contacts participated
-    {meeting_context, meeting_sources} = fetch_relevant_meetings(mentions, user_id)
+    # Fetch meetings where any mentioned names appear as participants
+    {meeting_context, _meeting_sources} = fetch_relevant_meetings(all_mentions, user_id)
 
-    # Build the prompt with both CRM and meeting context
+    # Build the prompt with full context + conversation history
     messages = build_chat_messages(user_message, conversation_messages, contacts, meeting_context)
+
+    # Only report sources relevant to the current message's mentions
+    displayed_sources =
+      if current_mentions == [] do
+        []
+      else
+        current_crm_sources =
+          Enum.filter(crm_sources, fn %{"name" => name} ->
+            Enum.any?(current_mentions, &mentions_match?(&1, name))
+          end)
+
+        # Local DB query — cheap to call separately for current mentions
+        {_, current_meeting_sources} = fetch_relevant_meetings(current_mentions, user_id)
+
+        current_crm_sources ++ current_meeting_sources
+      end
 
     case AIContentGeneratorApi.chat_completion(messages) do
       {:ok, response} ->
@@ -40,8 +56,8 @@ defmodule SocialScribe.Chat.ChatAI do
          %{
            content: strip_role_prefix(response),
            metadata: %{
-             "sources" => crm_sources ++ meeting_sources,
-             "mentions" => mentions
+             "sources" => displayed_sources,
+             "mentions" => all_mentions
            }
          }}
 
@@ -186,6 +202,10 @@ defmodule SocialScribe.Chat.ChatAI do
 
   defp search_crm(crm_type, credential, query) do
     CrmApiBehaviour.impl(to_string(crm_type)).search_contacts(credential, query)
+  end
+
+  defp mentions_match?(mention, source_name) do
+    String.contains?(String.downcase(source_name), String.downcase(mention))
   end
 
   defp build_chat_messages(user_message, conversation_history, contacts, meeting_context) do
