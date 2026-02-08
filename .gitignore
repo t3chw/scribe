@@ -53,6 +53,9 @@ TESTING_GUIDE.md
 .vscode/
 .idea/
 
+# Local dev scripts
+/priv/scripts/
+
 # OS files
 .DS_Store
 Thumbs.db
