@@ -161,68 +161,64 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
           I can answer questions about Jump meetings and data – just ask!
         </div>
         <%= for {message, idx} <- Enum.with_index(@messages) do %>
-            <.timestamp_separator
-              :if={show_timestamp?(message, idx, @messages)}
-              timestamp={message.inserted_at}
-            />
-            <div class={["flex", if(message.role == "user", do: "justify-end", else: "justify-start")]}>
-              <%= if message.role == "user" do %>
-                <div class="max-w-[85%] rounded-2xl rounded-br-md px-4 py-2.5 text-sm bg-[#f1f3f4] text-slate-800">
-                  <div class="break-words">
-                    <%= for segment <- parse_user_message_segments(message.content) do %>
-                      <.render_segment segment={segment} />
-                    <% end %>
-                  </div>
-                </div>
-              <% else %>
-                <div class="max-w-[85%] text-sm text-slate-800">
-                  <div class="break-words">
-                    <%= for segment <- parse_ai_message_segments(strip_assistant_prefix(message.content), message.metadata["mentions"]) do %>
-                      <.render_segment segment={segment} />
-                    <% end %>
-                  </div>
-                  <%= if message.metadata["sources"] && Enum.any?(message.metadata["sources"]) do %>
-                    <div class="mt-2 flex items-center gap-1.5 flex-wrap">
-                      <span class="text-xs text-teal-600 font-medium">Sources</span>
-                      <span
-                        :for={source <- unique_source_types(message.metadata["sources"])}
-                        class="inline-flex items-center gap-1 text-xs text-slate-500"
-                        title={source_tooltip(source)}
-                      >
-                        <span class={[
-                          "w-3 h-3 rounded-full flex-shrink-0",
-                          source_dot_color(source)
-                        ]}>
-                        </span>
-                        {source_label(source)}
-                      </span>
-                    </div>
+          <.timestamp_separator
+            :if={show_timestamp?(message, idx, @messages)}
+            timestamp={message.inserted_at}
+          />
+          <div class={["flex", if(message.role == "user", do: "justify-end", else: "justify-start")]}>
+            <%= if message.role == "user" do %>
+              <div class="max-w-[85%] rounded-2xl rounded-br-md px-4 py-2.5 text-sm bg-[#f1f3f4] text-slate-800">
+                <div class="break-words">
+                  <%= for segment <- parse_user_message_segments(message.content) do %>
+                    <.render_segment segment={segment} />
                   <% end %>
                 </div>
-              <% end %>
-            </div>
-          <% end %>
-          <div :if={@loading} class="flex justify-start">
-            <div class="text-sm text-slate-400">
-              <div class="flex space-x-1.5">
-                <div
-                  class="w-2 h-2 bg-slate-300 rounded-full animate-bounce"
-                  style="animation-delay: 0ms"
-                >
+              </div>
+            <% else %>
+              <div class="max-w-[85%] text-sm text-slate-800">
+                <div class="break-words">
+                  <%= for segment <- parse_ai_message_segments(strip_assistant_prefix(message.content), message.metadata["mentions"]) do %>
+                    <.render_segment segment={segment} />
+                  <% end %>
                 </div>
-                <div
-                  class="w-2 h-2 bg-slate-300 rounded-full animate-bounce"
-                  style="animation-delay: 150ms"
-                >
-                </div>
-                <div
-                  class="w-2 h-2 bg-slate-300 rounded-full animate-bounce"
-                  style="animation-delay: 300ms"
-                >
-                </div>
+                <%= if message.metadata["sources"] && Enum.any?(message.metadata["sources"]) do %>
+                  <div class="mt-2 flex items-center gap-1.5 flex-wrap">
+                    <span class="text-xs text-teal-600 font-medium">Sources</span>
+                    <span
+                      :for={source <- unique_source_types(message.metadata["sources"])}
+                      class="inline-flex items-center gap-1 text-xs text-slate-500"
+                      title={source_tooltip(source)}
+                    >
+                      <.source_icon source={source} size="w-3 h-3" />
+                      {source_label(source)}
+                    </span>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+        <div :if={@loading} class="flex justify-start">
+          <div class="text-sm text-slate-400">
+            <div class="flex space-x-1.5">
+              <div
+                class="w-2 h-2 bg-slate-300 rounded-full animate-bounce"
+                style="animation-delay: 0ms"
+              >
+              </div>
+              <div
+                class="w-2 h-2 bg-slate-300 rounded-full animate-bounce"
+                style="animation-delay: 150ms"
+              >
+              </div>
+              <div
+                class="w-2 h-2 bg-slate-300 rounded-full animate-bounce"
+                style="animation-delay: 300ms"
+              >
               </div>
             </div>
           </div>
+        </div>
       </div>
 
       <%!-- Input area --%>
@@ -264,11 +260,7 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
                 phx-target={@myself}
                 data-mention-index={idx}
               >
-                <span class={[
-                  "w-3 h-3 rounded-full flex-shrink-0",
-                  mention_source_color(suggestion.source)
-                ]}>
-                </span>
+                <.source_icon source={suggestion.source} size="w-3 h-3" />
                 <span class="truncate">{suggestion.name}</span>
                 <span class="text-xs text-slate-400 ml-auto">
                   {mention_source_label(suggestion.source)}
@@ -302,11 +294,7 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
             <div class="flex items-center justify-between px-3 pb-2">
               <div class="flex items-center gap-1.5">
                 <span class="text-xs text-teal-600 font-medium">Sources</span>
-                <span
-                  :for={source <- @connected_sources}
-                  class={["w-4 h-4 rounded-full", connected_source_color(source)]}
-                >
-                </span>
+                <.source_icon :for={source <- @connected_sources} source={source} size="w-4 h-4" />
               </div>
               <button
                 type="submit"
@@ -663,18 +651,71 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
     String.replace(text, ~r/^ASSISTANT:\s*/i, "")
   end
 
-  defp source_dot_color(%{"type" => "meeting"}), do: "bg-slate-800"
+  attr :source, :any, required: true
+  attr :size, :string, default: "w-4 h-4"
 
-  defp source_dot_color(%{"crm" => crm_name}) do
-    case SocialScribe.CRM.ProviderConfig.get(crm_name) do
-      %{chat_dot_color: color} -> color
-      _ -> "bg-slate-400"
+  defp source_icon(assigns) do
+    case resolve_icon_data(assigns.source) do
+      {:dot, color} ->
+        assigns = assign(assigns, :color, color)
+
+        ~H"""
+        <span class={["rounded-full flex-shrink-0", @size, @color]}></span>
+        """
+
+      {:svg, path, viewbox, color_class} ->
+        assigns =
+          assigns
+          |> assign(:path, path)
+          |> assign(:viewbox, viewbox)
+          |> assign(:color_class, color_class)
+
+        ~H"""
+        <svg class={["flex-shrink-0", @size, @color_class]} viewBox={@viewbox} fill="currentColor">
+          <path d={@path} />
+        </svg>
+        """
     end
-  rescue
-    KeyError -> "bg-slate-400"
   end
 
-  defp source_dot_color(_), do: "bg-slate-400"
+  @meeting_icon_path "M4.5 4.5a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h9a3 3 0 0 0 3-3v-1.72l3.44 3.44a.75.75 0 0 0 1.28-.53V6.31a.75.75 0 0 0-1.28-.53L16.5 9.22V7.5a3 3 0 0 0-3-3h-9Z"
+  @meeting_icon_viewbox "0 0 24 24"
+  @meeting_icon_color "text-slate-800"
+
+  defp resolve_icon_data(:meetings),
+    do: {:svg, @meeting_icon_path, @meeting_icon_viewbox, @meeting_icon_color}
+
+  defp resolve_icon_data(%{"type" => "meeting"}),
+    do: {:svg, @meeting_icon_path, @meeting_icon_viewbox, @meeting_icon_color}
+
+  defp resolve_icon_data("meetings"),
+    do: {:svg, @meeting_icon_path, @meeting_icon_viewbox, @meeting_icon_color}
+
+  defp resolve_icon_data(provider_atom) when is_atom(provider_atom),
+    do: resolve_provider_icon(Atom.to_string(provider_atom))
+
+  defp resolve_icon_data(%{"crm" => crm_name}),
+    do: resolve_provider_icon(crm_name)
+
+  defp resolve_icon_data(provider_name) when is_binary(provider_name),
+    do: resolve_provider_icon(provider_name)
+
+  defp resolve_icon_data(_), do: {:dot, "bg-slate-400"}
+
+  defp resolve_provider_icon(name) do
+    provider = SocialScribe.CRM.ProviderConfig.get(name)
+
+    case {Map.get(provider, :icon_svg_path), Map.get(provider, :icon_viewbox),
+          Map.get(provider, :chat_icon_color)} do
+      {path, viewbox, color} when is_binary(path) and is_binary(viewbox) and is_binary(color) ->
+        {:svg, path, viewbox, color}
+
+      _ ->
+        {:dot, Map.get(provider, :chat_dot_color, "bg-slate-400")}
+    end
+  rescue
+    KeyError -> {:dot, "bg-slate-400"}
+  end
 
   defp unique_source_types(sources) do
     Enum.uniq_by(sources, fn
@@ -704,26 +745,6 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
     do: "#{String.capitalize(crm)}: #{name}"
 
   defp source_tooltip(_), do: nil
-
-  defp connected_source_color(:meetings), do: "bg-slate-800"
-
-  defp connected_source_color(provider_atom) do
-    case SocialScribe.CRM.ProviderConfig.get(Atom.to_string(provider_atom)) do
-      %{chat_dot_color: color} -> color
-      _ -> "bg-slate-400"
-    end
-  end
-
-  defp mention_source_color("meetings"), do: "bg-slate-800"
-
-  defp mention_source_color(provider_name) do
-    case SocialScribe.CRM.ProviderConfig.get(provider_name) do
-      %{chat_dot_color: color} -> color
-      _ -> "bg-slate-400"
-    end
-  rescue
-    KeyError -> "bg-slate-400"
-  end
 
   defp mention_source_label("meetings"), do: "Meetings"
 

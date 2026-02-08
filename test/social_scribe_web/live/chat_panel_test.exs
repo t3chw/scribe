@@ -64,13 +64,13 @@ defmodule SocialScribeWeb.ChatPanelTest do
       assert html =~ "Sources"
     end
 
-    test "chat panel shows meetings source dot by default", %{conn: conn} do
+    test "chat panel shows meetings source icon by default", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/dashboard")
 
       render_click(view, "toggle_chat")
       html = render(view)
 
-      assert html =~ "bg-slate-800"
+      assert html =~ "text-slate-800"
     end
 
     test "chat panel shows @ Add context label", %{conn: conn} do
