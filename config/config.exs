@@ -21,8 +21,9 @@ config :social_scribe, Oban,
     {Oban.Plugins.Cron,
      crontab: [
        {"*/2 * * * *", SocialScribe.Workers.BotStatusPoller},
-       {"*/5 * * * *", SocialScribe.Workers.HubspotTokenRefresher},
-       {"*/5 * * * *", SocialScribe.Workers.SalesforceTokenRefresher},
+       {"*/5 * * * *", SocialScribe.Workers.CrmTokenRefresher, args: %{"provider" => "hubspot"}},
+       {"*/5 * * * *", SocialScribe.Workers.CrmTokenRefresher,
+        args: %{"provider" => "salesforce"}},
        {"*/30 * * * *", SocialScribe.Workers.CRMContactSyncer}
      ]}
   ]
@@ -110,16 +111,8 @@ config :ueberauth, Ueberauth,
   ]
 
 config :social_scribe, :crm_providers, [
-  %{
-    name: "hubspot",
-    api_config_key: :hubspot_api,
-    behaviour_module: SocialScribe.HubspotApiBehaviour
-  },
-  %{
-    name: "salesforce",
-    api_config_key: :salesforce_api,
-    behaviour_module: SocialScribe.SalesforceApiBehaviour
-  }
+  %{name: "hubspot", api_config_key: :hubspot_api},
+  %{name: "salesforce", api_config_key: :salesforce_api}
 ]
 
 # Import environment specific config. This must remain at the bottom

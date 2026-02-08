@@ -1,7 +1,9 @@
-defmodule SocialScribe.SalesforceApiBehaviour do
+defmodule SocialScribe.CrmApiBehaviour do
   @moduledoc """
-  A behaviour for implementing a Salesforce API client.
-  Allows for using a real client in production and a mock client in tests.
+  Unified CRM API behaviour. Defines the contract all CRM API clients must implement.
+  Use `impl/1` to get the implementation module for a given provider.
+
+  To add a new CRM provider, implement these callbacks and register in config.
   """
 
   alias SocialScribe.Accounts.UserCredential
@@ -29,27 +31,12 @@ defmodule SocialScribe.SalesforceApiBehaviour do
   @callback list_contacts(credential :: UserCredential.t()) ::
               {:ok, list(map())} | {:error, any()}
 
-  def search_contacts(credential, query) do
-    impl().search_contacts(credential, query)
-  end
-
-  def get_contact(credential, contact_id) do
-    impl().get_contact(credential, contact_id)
-  end
-
-  def update_contact(credential, contact_id, updates) do
-    impl().update_contact(credential, contact_id, updates)
-  end
-
-  def apply_updates(credential, contact_id, updates_list) do
-    impl().apply_updates(credential, contact_id, updates_list)
-  end
-
-  def list_contacts(credential) do
-    impl().list_contacts(credential)
-  end
-
-  defp impl do
-    Application.get_env(:social_scribe, :salesforce_api, SocialScribe.SalesforceApi)
+  @doc """
+  Returns the implementation module for the given CRM provider name.
+  Raises if the provider name is not registered in ProviderConfig.
+  """
+  def impl(provider_name) when is_binary(provider_name) do
+    provider = SocialScribe.CRM.ProviderConfig.get(provider_name)
+    Application.get_env(:social_scribe, provider.api_config_key, provider.api_module)
   end
 end

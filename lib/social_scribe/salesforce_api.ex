@@ -4,7 +4,7 @@ defmodule SocialScribe.SalesforceApi do
   Implements automatic token refresh on 401/expired token errors.
   """
 
-  @behaviour SocialScribe.SalesforceApiBehaviour
+  @behaviour SocialScribe.CrmApiBehaviour
 
   alias SocialScribe.Accounts.UserCredential
   alias SocialScribe.SalesforceTokenRefresher

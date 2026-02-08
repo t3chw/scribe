@@ -1,4 +1,9 @@
 defmodule SocialScribe.Workers.AIContentGenerationWorker do
+  @moduledoc """
+  Oban worker that generates AI content for a completed meeting.
+  Produces a follow-up email draft and runs all active user automations
+  (e.g. LinkedIn post, Facebook post) against the meeting transcript via Gemini.
+  """
   alias SocialScribe.Meetings.Meeting
   use Oban.Worker, queue: :ai_content, max_attempts: 3
 

@@ -1,17 +1,26 @@
 defmodule SocialScribeWeb.MeetingLive.Show do
+  @moduledoc """
+  LiveView for the meeting detail page. Displays transcript, follow-up email,
+  automation results, and CRM update modals (HubSpot, Salesforce).
+
+  Handles generic CRM operations (search, suggest, apply) via parameterized
+  `handle_info` callbacks that dispatch to the appropriate provider.
+  """
   use SocialScribeWeb, :live_view
 
   import SocialScribeWeb.PlatformLogo
   import SocialScribeWeb.ClipboardButton
-  import SocialScribeWeb.ModalComponents, only: [hubspot_modal: 1, salesforce_modal: 1]
+  import SocialScribeWeb.ModalComponents, only: [crm_modal: 1]
 
   alias SocialScribe.Meetings
   alias SocialScribe.Automations
   alias SocialScribe.Accounts
-  alias SocialScribe.HubspotApiBehaviour, as: HubspotApi
-  alias SocialScribe.HubspotSuggestions
-  alias SocialScribe.SalesforceApiBehaviour, as: SalesforceApi
-  alias SocialScribe.SalesforceSuggestions
+  alias SocialScribe.CrmApiBehaviour
+  alias SocialScribe.CrmSuggestions
+  alias SocialScribe.CRM.ProviderConfig
+
+  @valid_crm_names ProviderConfig.names()
+  @crm_actions Enum.map(@valid_crm_names, &String.to_existing_atom/1)
 
   @impl true
   def mount(%{"id" => meeting_id}, _session, socket) do
@@ -32,10 +41,14 @@ defmodule SocialScribeWeb.MeetingLive.Show do
 
       {:error, socket}
     else
-      hubspot_credential = Accounts.get_user_hubspot_credential(socket.assigns.current_user.id)
-
-      salesforce_credential =
-        Accounts.get_user_salesforce_credential(socket.assigns.current_user.id)
+      crm_credentials =
+        ProviderConfig.all()
+        |> Enum.reduce(%{}, fn provider, acc ->
+          case Accounts.get_user_crm_credential(socket.assigns.current_user.id, provider.name) do
+            nil -> acc
+            credential -> Map.put(acc, provider.name, credential)
+          end
+        end)
 
       socket =
         socket
@@ -43,8 +56,10 @@ defmodule SocialScribeWeb.MeetingLive.Show do
         |> assign(:meeting, meeting)
         |> assign(:automation_results, automation_results)
         |> assign(:user_has_automations, user_has_automations)
-        |> assign(:hubspot_credential, hubspot_credential)
-        |> assign(:salesforce_credential, salesforce_credential)
+        |> assign(:crm_credentials, crm_credentials)
+        |> assign(:crm_actions, @crm_actions)
+        |> assign(:active_crm_config, nil)
+        |> assign(:active_crm_credential, nil)
         |> assign(
           :follow_up_email_form,
           to_form(%{
@@ -70,6 +85,19 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   end
 
   @impl true
+  def handle_params(_params, _uri, %{assigns: %{live_action: action}} = socket)
+      when action in @crm_actions do
+    crm_name = Atom.to_string(action)
+    crm_config = ProviderConfig.get(crm_name)
+    credential = Map.get(socket.assigns.crm_credentials, crm_name)
+
+    {:noreply,
+     socket
+     |> assign(:active_crm_config, crm_config)
+     |> assign(:active_crm_credential, credential)}
+  end
+
+  @impl true
   def handle_params(_params, _uri, socket) do
     {:noreply, socket}
   end
@@ -84,18 +112,21 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   end
 
   @impl true
-  def handle_info({:hubspot_search, query, credential}, socket) do
-    case HubspotApi.search_contacts(credential, query) do
+  def handle_info({:crm_search, crm_name, query, credential}, socket)
+      when crm_name in @valid_crm_names do
+    api = CrmApiBehaviour.impl(crm_name)
+
+    case api.search_contacts(credential, query) do
       {:ok, contacts} ->
         send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
-          id: "hubspot-modal",
+          id: "#{crm_name}-modal",
           contacts: contacts,
           searching: false
         )
 
       {:error, reason} ->
         send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
-          id: "hubspot-modal",
+          id: "#{crm_name}-modal",
           error: "Failed to search contacts: #{inspect(reason)}",
           searching: false
         )
@@ -105,13 +136,20 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   end
 
   @impl true
-  def handle_info({:generate_suggestions, contact, meeting, _credential}, socket) do
-    case HubspotSuggestions.generate_suggestions_from_meeting(meeting, contact.display_name) do
+  def handle_info({:generate_crm_suggestions, crm_name, contact, meeting, _credential}, socket)
+      when crm_name in @valid_crm_names do
+    crm_config = ProviderConfig.get(crm_name)
+
+    case CrmSuggestions.generate_suggestions_from_meeting(
+           meeting,
+           contact.display_name,
+           crm_config
+         ) do
       {:ok, suggestions} ->
-        merged = HubspotSuggestions.merge_with_contact(suggestions, contact)
+        merged = CrmSuggestions.merge_with_contact(suggestions, contact)
 
         send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
-          id: "hubspot-modal",
+          id: "#{crm_name}-modal",
           step: :suggestions,
           suggestions: merged,
           loading: false
@@ -119,7 +157,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
 
       {:error, reason} ->
         send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
-          id: "hubspot-modal",
+          id: "#{crm_name}-modal",
           error: "Failed to generate suggestions: #{inspect(reason)}",
           loading: false
         )
@@ -129,86 +167,26 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   end
 
   @impl true
-  def handle_info({:apply_hubspot_updates, updates, contact, credential}, socket) do
-    case HubspotApi.update_contact(credential, contact.id, updates) do
+  def handle_info({:apply_crm_updates, crm_name, updates, contact, credential}, socket)
+      when crm_name in @valid_crm_names do
+    api = CrmApiBehaviour.impl(crm_name)
+    crm_config = ProviderConfig.get(crm_name)
+
+    case api.update_contact(credential, contact.id, updates) do
       {:ok, _updated_contact} ->
         socket =
           socket
-          |> put_flash(:info, "Successfully updated #{map_size(updates)} field(s) in HubSpot")
+          |> put_flash(
+            :info,
+            "Successfully updated #{map_size(updates)} field(s) in #{crm_config.display_name}"
+          )
           |> push_patch(to: ~p"/dashboard/meetings/#{socket.assigns.meeting}")
 
         {:noreply, socket}
 
       {:error, reason} ->
         send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
-          id: "hubspot-modal",
-          error: "Failed to update contact: #{inspect(reason)}",
-          loading: false
-        )
-
-        {:noreply, socket}
-    end
-  end
-
-  @impl true
-  def handle_info({:salesforce_search, query, credential}, socket) do
-    case SalesforceApi.search_contacts(credential, query) do
-      {:ok, contacts} ->
-        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
-          id: "salesforce-modal",
-          contacts: contacts,
-          searching: false
-        )
-
-      {:error, reason} ->
-        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
-          id: "salesforce-modal",
-          error: "Failed to search contacts: #{inspect(reason)}",
-          searching: false
-        )
-    end
-
-    {:noreply, socket}
-  end
-
-  @impl true
-  def handle_info({:generate_salesforce_suggestions, contact, meeting, _credential}, socket) do
-    case SalesforceSuggestions.generate_suggestions_from_meeting(meeting, contact.display_name) do
-      {:ok, suggestions} ->
-        merged = SalesforceSuggestions.merge_with_contact(suggestions, contact)
-
-        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
-          id: "salesforce-modal",
-          step: :suggestions,
-          suggestions: merged,
-          loading: false
-        )
-
-      {:error, reason} ->
-        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
-          id: "salesforce-modal",
-          error: "Failed to generate suggestions: #{inspect(reason)}",
-          loading: false
-        )
-    end
-
-    {:noreply, socket}
-  end
-
-  @impl true
-  def handle_info({:apply_salesforce_updates, updates, contact, credential}, socket) do
-    case SalesforceApi.update_contact(credential, contact.id, updates) do
-      {:ok, _updated_contact} ->
-        socket =
-          socket
-          |> put_flash(:info, "Successfully updated #{map_size(updates)} field(s) in Salesforce")
-          |> push_patch(to: ~p"/dashboard/meetings/#{socket.assigns.meeting}")
-
-        {:noreply, socket}
-
-      {:error, reason} ->
-        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
-          id: "salesforce-modal",
+          id: "#{crm_name}-modal",
           error: "Failed to update contact: #{inspect(reason)}",
           loading: false
         )

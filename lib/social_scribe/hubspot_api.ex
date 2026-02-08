@@ -4,7 +4,7 @@ defmodule SocialScribe.HubspotApi do
   Implements automatic token refresh on 401/expired token errors.
   """
 
-  @behaviour SocialScribe.HubspotApiBehaviour
+  @behaviour SocialScribe.CrmApiBehaviour
 
   alias SocialScribe.Accounts.UserCredential
   alias SocialScribe.HubspotTokenRefresher

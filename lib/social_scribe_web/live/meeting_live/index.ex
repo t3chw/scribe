@@ -1,4 +1,7 @@
 defmodule SocialScribeWeb.MeetingLive.Index do
+  @moduledoc """
+  LiveView listing all processed meetings for the current user.
+  """
   use SocialScribeWeb, :live_view
 
   import SocialScribeWeb.PlatformLogo

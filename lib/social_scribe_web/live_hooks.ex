@@ -1,4 +1,11 @@
 defmodule SocialScribeWeb.LiveHooks do
+  @moduledoc """
+  LiveView lifecycle hooks attached via `on_mount`.
+
+  - `:assign_current_path` — tracks the current URL path for navigation highlighting.
+  - `:assign_chat_state` — initializes chat panel state, handles AI message
+    processing in supervised async tasks, and manages conversation persistence.
+  """
   import Phoenix.Component, only: [assign: 3]
   import Phoenix.LiveView, only: [attach_hook: 4]
 

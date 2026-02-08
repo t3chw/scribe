@@ -89,47 +89,28 @@
       <% end %>
     </div>
 
-    <div :if={@hubspot_credential} class="bg-white shadow-xl rounded-lg p-6 md:p-8">
+    <div
+      :for={provider <- SocialScribe.CRM.ProviderConfig.all()}
+      :if={Map.has_key?(@crm_credentials, provider.name)}
+      class="bg-white shadow-xl rounded-lg p-6 md:p-8"
+    >
       <div class="flex justify-between items-center">
         <div>
-          <h2 class="text-2xl font-semibold text-slate-700">HubSpot Integration</h2>
+          <h2 class="text-2xl font-semibold text-slate-700">
+            {provider.display_name} Integration
+          </h2>
           <p class="text-sm text-slate-500 mt-1">
             Update CRM contacts with information from this meeting
           </p>
         </div>
         <.link
-          patch={~p"/dashboard/meetings/#{@meeting}/hubspot"}
-          class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-500 hover:bg-orange-600 transition-colors"
+          patch={"/dashboard/meetings/#{@meeting.id}/#{provider.name}"}
+          class={"inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white #{provider.button_class} transition-colors"}
         >
-          <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M18.72 14.76c.35-.85.54-1.76.54-2.76 0-.72-.11-1.41-.3-2.05-.65.15-1.33.23-2.04.23A9.07 9.07 0 0112 9.9a8.963 8.963 0 01-4.92.28c-.2.64-.3 1.33-.3 2.05 0 1 .19 1.91.54 2.76 1.34-.5 2.75-.79 4.18-.79s2.84.29 4.22.79M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8m0-14c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3" />
+          <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox={provider.icon_viewbox}>
+            <path d={provider.icon_svg_path} />
           </svg>
-          Update HubSpot Contact
-        </.link>
-      </div>
-    </div>
-
-    <div :if={@salesforce_credential} class="bg-white shadow-xl rounded-lg p-6 md:p-8">
-      <div class="flex justify-between items-center">
-        <div>
-          <h2 class="text-2xl font-semibold text-slate-700">Salesforce Integration</h2>
-          <p class="text-sm text-slate-500 mt-1">
-            Update CRM contacts with information from this meeting
-          </p>
-        </div>
-        <.link
-          patch={~p"/dashboard/meetings/#{@meeting}/salesforce"}
-          class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-[#0070D2] hover:bg-[#005FB2] transition-colors"
-        >
-          <svg
-            class="w-5 h-5 mr-2"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path d="M10.09 2.45a4.94 4.94 0 0 0-3.81 1.81 5.96 5.96 0 0 0-4.52 5.73 5.96 5.96 0 0 0 4.14 5.67 4.43 4.43 0 0 0 4.18 2.99 4.44 4.44 0 0 0 2.91-1.1 4.44 4.44 0 0 0 3.39 1.57 4.48 4.48 0 0 0 4.34-3.39A4.96 4.96 0 0 0 24 11.2a4.97 4.97 0 0 0-4.48-4.95 5.44 5.44 0 0 0-4.97-3.8 5.46 5.46 0 0 0-3.13.98 4.92 4.92 0 0 0-1.33-.98z" />
-          </svg>
-          Update Salesforce Contact
+          Update {provider.display_name} Contact
         </.link>
       </div>
     </div>
@@ -180,58 +161,27 @@
   />
 </.modal>
 
-<.hubspot_modal
-  :if={@live_action == :hubspot && @hubspot_credential}
-  id="hubspot-modal-wrapper"
+<.crm_modal
+  :if={@live_action in @crm_actions && @active_crm_credential}
+  id={"#{@active_crm_config.name}-modal-wrapper"}
   show
   on_cancel={JS.patch(~p"/dashboard/meetings/#{@meeting}")}
+  overlay_class={@active_crm_config.overlay_class}
 >
   <.live_component
     module={SocialScribeWeb.MeetingLive.CrmModalComponent}
-    id="hubspot-modal"
+    id={"#{@active_crm_config.name}-modal"}
     meeting={@meeting}
-    credential={@hubspot_credential}
-    modal_id="hubspot-modal-wrapper"
+    credential={@active_crm_credential}
+    modal_id={"#{@active_crm_config.name}-modal-wrapper"}
     crm_config={
       %{
-        id: "hubspot",
-        name: "HubSpot",
-        description:
-          "Here are suggested updates to sync with your integrations based on this meeting",
-        search_msg: :hubspot_search,
-        suggest_msg: :generate_suggestions,
-        apply_msg: :apply_hubspot_updates,
-        submit_text: "Update HubSpot",
-        submit_class: "bg-hubspot-button hover:bg-hubspot-button-hover"
+        id: @active_crm_config.name,
+        name: @active_crm_config.display_name,
+        description: @active_crm_config.modal_description,
+        submit_text: @active_crm_config.modal_submit_text,
+        submit_class: @active_crm_config.modal_submit_class
       }
     }
   />
-</.hubspot_modal>
-
-<.salesforce_modal
-  :if={@live_action == :salesforce && @salesforce_credential}
-  id="salesforce-modal-wrapper"
-  show
-  on_cancel={JS.patch(~p"/dashboard/meetings/#{@meeting}")}
->
-  <.live_component
-    module={SocialScribeWeb.MeetingLive.CrmModalComponent}
-    id="salesforce-modal"
-    meeting={@meeting}
-    credential={@salesforce_credential}
-    modal_id="salesforce-modal-wrapper"
-    crm_config={
-      %{
-        id: "salesforce",
-        name: "Salesforce",
-        description:
-          "Here are suggested updates to sync with your Salesforce CRM based on this meeting",
-        search_msg: :salesforce_search,
-        suggest_msg: :generate_salesforce_suggestions,
-        apply_msg: :apply_salesforce_updates,
-        submit_text: "Update Salesforce",
-        submit_class: "bg-[#0070D2] hover:bg-[#005FB2]"
-      }
-    }
-  />
-</.salesforce_modal>
+</.crm_modal>

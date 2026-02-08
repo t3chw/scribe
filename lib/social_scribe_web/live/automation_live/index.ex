@@ -1,4 +1,7 @@
 defmodule SocialScribeWeb.AutomationLive.Index do
+  @moduledoc """
+  LiveView listing all automations for the current user with CRUD actions.
+  """
   use SocialScribeWeb, :live_view
 
   alias SocialScribe.Automations

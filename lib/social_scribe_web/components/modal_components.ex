@@ -624,42 +624,6 @@ defmodule SocialScribeWeb.ModalComponents do
     """
   end
 
-  @doc """
-  Renders a HubSpot-styled modal wrapper.
-  """
-  attr :id, :string, required: true
-  attr :show, :boolean, default: false
-  attr :on_cancel, JS, default: %JS{}
-  slot :inner_block, required: true
-
-  def hubspot_modal(assigns) do
-    assigns = assign(assigns, :overlay_class, "bg-hubspot-overlay/90")
-
-    ~H"""
-    <.crm_modal id={@id} show={@show} on_cancel={@on_cancel} overlay_class={@overlay_class}>
-      {render_slot(@inner_block)}
-    </.crm_modal>
-    """
-  end
-
-  @doc """
-  Renders a Salesforce-styled modal wrapper.
-  """
-  attr :id, :string, required: true
-  attr :show, :boolean, default: false
-  attr :on_cancel, JS, default: %JS{}
-  slot :inner_block, required: true
-
-  def salesforce_modal(assigns) do
-    assigns = assign(assigns, :overlay_class, "bg-slate-500/90")
-
-    ~H"""
-    <.crm_modal id={@id} show={@show} on_cancel={@on_cancel} overlay_class={@overlay_class}>
-      {render_slot(@inner_block)}
-    </.crm_modal>
-    """
-  end
-
   defp show_modal(js \\ %JS{}, id) when is_binary(id) do
     js
     |> JS.show(to: "##{id}")

@@ -1,4 +1,9 @@
 defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
+  @moduledoc """
+  Slide-out chat panel LiveComponent accessible from all dashboard pages.
+  Provides an AI chat interface with CRM contact lookup via @mentions
+  and conversation history management.
+  """
   use SocialScribeWeb, :live_component
 
   alias SocialScribe.Chat

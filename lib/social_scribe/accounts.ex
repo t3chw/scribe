@@ -310,10 +310,17 @@ defmodule SocialScribe.Accounts do
   end
 
   @doc """
+  Gets the user's CRM credential for the given provider if one exists.
+  """
+  def get_user_crm_credential(user_id, provider) when is_binary(provider) do
+    Repo.get_by(UserCredential, user_id: user_id, provider: provider)
+  end
+
+  @doc """
   Gets the user's HubSpot credential if one exists.
   """
   def get_user_hubspot_credential(user_id) do
-    Repo.get_by(UserCredential, user_id: user_id, provider: "hubspot")
+    get_user_crm_credential(user_id, "hubspot")
   end
 
   @doc """
@@ -334,7 +341,7 @@ defmodule SocialScribe.Accounts do
   Gets the user's Salesforce credential if one exists.
   """
   def get_user_salesforce_credential(user_id) do
-    Repo.get_by(UserCredential, user_id: user_id, provider: "salesforce")
+    get_user_crm_credential(user_id, "salesforce")
   end
 
   defp get_user_by_oauth_uid(provider, uid) do

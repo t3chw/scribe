@@ -6,8 +6,7 @@ defmodule SocialScribe.Chat.ChatAI do
 
   alias SocialScribe.Accounts
   alias SocialScribe.Meetings
-  alias SocialScribe.HubspotApiBehaviour, as: HubspotApi
-  alias SocialScribe.SalesforceApiBehaviour, as: SalesforceApi
+  alias SocialScribe.CrmApiBehaviour
   alias SocialScribe.AIContentGeneratorApi
 
   require Logger
@@ -92,16 +91,14 @@ defmodule SocialScribe.Chat.ChatAI do
   Gets all connected CRM credentials (HubSpot + Salesforce) for a user.
   """
   def get_user_crm_credentials(user_id) do
-    hubspot = Accounts.get_user_hubspot_credential(user_id)
-    salesforce = Accounts.get_user_salesforce_credential(user_id)
-
-    []
-    |> maybe_add_credential(hubspot, :hubspot)
-    |> maybe_add_credential(salesforce, :salesforce)
+    SocialScribe.CRM.ProviderConfig.all()
+    |> Enum.reduce([], fn provider, acc ->
+      case Accounts.get_user_crm_credential(user_id, provider.name) do
+        nil -> acc
+        credential -> [{String.to_existing_atom(provider.name), credential} | acc]
+      end
+    end)
   end
-
-  defp maybe_add_credential(list, nil, _type), do: list
-  defp maybe_add_credential(list, credential, type), do: [{type, credential} | list]
 
   @doc """
   For each @name, searches each connected CRM and returns matching contacts.
@@ -187,12 +184,8 @@ defmodule SocialScribe.Chat.ChatAI do
     {meeting_context, meeting_sources}
   end
 
-  defp search_crm(:hubspot, credential, query) do
-    HubspotApi.search_contacts(credential, query)
-  end
-
-  defp search_crm(:salesforce, credential, query) do
-    SalesforceApi.search_contacts(credential, query)
+  defp search_crm(crm_type, credential, query) do
+    CrmApiBehaviour.impl(to_string(crm_type)).search_contacts(credential, query)
   end
 
   defp build_chat_messages(user_message, conversation_history, contacts, meeting_context) do

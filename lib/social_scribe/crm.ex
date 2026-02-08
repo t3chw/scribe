@@ -8,6 +8,7 @@ defmodule SocialScribe.CRM do
   alias SocialScribe.Repo
   alias SocialScribe.CRM.CRMContact
   alias SocialScribe.Accounts.UserCredential
+  alias SocialScribe.CrmApiBehaviour
 
   require Logger
 
@@ -44,7 +45,7 @@ defmodule SocialScribe.CRM do
       credential = Repo.get_by(UserCredential, user_id: user_id, provider: provider.name)
 
       if credential do
-        case provider.behaviour_module.list_contacts(credential) do
+        case CrmApiBehaviour.impl(provider.name).list_contacts(credential) do
           {:ok, contacts} ->
             upsert_contacts(user_id, provider.name, contacts)
 

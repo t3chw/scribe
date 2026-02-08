@@ -1,4 +1,7 @@
 defmodule SocialScribeWeb.AutomationLive.Show do
+  @moduledoc """
+  LiveView for viewing a single automation's details and prompt template.
+  """
   use SocialScribeWeb, :live_view
 
   alias SocialScribe.Automations

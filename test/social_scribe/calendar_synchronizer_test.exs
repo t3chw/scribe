@@ -1,11 +1,11 @@
-defmodule SocialScribe.CalendarSyncronizerTest do
+defmodule SocialScribe.CalendarSynchronizerTest do
   use SocialScribe.DataCase, async: true
 
   import Mox
   import SocialScribe.AccountsFixtures
 
   # The context containing the sync logic
-  alias SocialScribe.CalendarSyncronizer
+  alias SocialScribe.CalendarSynchronizer
   alias SocialScribe.Calendar.CalendarEvent
   alias SocialScribe.TokenRefresherMock
   alias SocialScribe.GoogleCalendarApiMock, as: GoogleApiMock
@@ -62,7 +62,7 @@ defmodule SocialScribe.CalendarSyncronizerTest do
         {:ok, %{"items" => @mock_google_events}}
       end)
 
-      assert {:ok, :sync_complete} = CalendarSyncronizer.sync_events_for_user(user)
+      assert {:ok, :sync_complete} = CalendarSynchronizer.sync_events_for_user(user)
 
       assert Repo.aggregate(CalendarEvent, :count, :id) == 2
 
@@ -98,7 +98,7 @@ defmodule SocialScribe.CalendarSyncronizerTest do
         {:ok, %{"items" => [@mock_google_events |> Enum.at(0)]}}
       end)
 
-      assert {:ok, :sync_complete} = CalendarSyncronizer.sync_events_for_user(user)
+      assert {:ok, :sync_complete} = CalendarSynchronizer.sync_events_for_user(user)
 
       assert Repo.aggregate(CalendarEvent, :count, :id) == 1
       assert Repo.get_by!(CalendarEvent, google_event_id: "zoom-event-123")

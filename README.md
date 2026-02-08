@@ -43,7 +43,7 @@ Full Salesforce CRM integration following the same architecture as HubSpot, desi
 
 * **Custom Ueberauth Strategy:** `lib/ueberauth/strategy/salesforce.ex` — handles authorization code flow with Salesforce's OAuth 2.0 endpoints
 * **Credential Storage:** Stored in `user_credentials` with `provider: "salesforce"`, including `instance_url` in the `metadata` field (needed for all Salesforce API calls)
-* **Token Refresh:** `SalesforceTokenRefresher` Oban cron worker runs every 5 minutes, plus `with_token_refresh/2` wrapper auto-retries on 401
+* **Token Refresh:** `Workers.CrmTokenRefresher` Oban cron worker (parameterized per provider) runs every 5 minutes, plus `with_token_refresh/2` wrapper auto-retries on 401
 
 ### Salesforce Contact Updates
 
@@ -74,18 +74,66 @@ An AI-powered chat panel accessible from every dashboard page via the "Ask Anyth
 
 ## 🏗️ Unified CRM Architecture
 
-Both HubSpot and Salesforce follow the same pattern, making it easy to add more CRMs:
+All CRM integrations share a single set of generic modules, parameterized by config from `CRM.ProviderConfig`:
 
-| Layer | HubSpot | Salesforce |
-|-------|---------|------------|
-| API Behaviour | `HubspotApiBehaviour` | `SalesforceApiBehaviour` |
-| API Client | `HubspotApi` | `SalesforceApi` |
-| Token Refresher | `HubspotTokenRefresher` | `SalesforceTokenRefresher` |
-| AI Suggestions | `HubspotSuggestions` | `SalesforceSuggestions` |
-| Oban Worker | `Workers.HubspotTokenRefresher` | `Workers.SalesforceTokenRefresher` |
-| Modal UI | `CrmModalComponent` (shared, parameterized via `crm_config`) |
+| Layer | Module | Purpose |
+|-------|--------|---------|
+| Behaviour | `CrmApiBehaviour` | Single behaviour with 5 callbacks (`search_contacts`, `get_contact`, `update_contact`, `apply_updates`, `list_contacts`) + `impl/1` dispatcher |
+| API Clients | `HubspotApi`, `SalesforceApi` | Per-provider implementations of `CrmApiBehaviour` |
+| Config | `CRM.ProviderConfig` | Centralized provider config (field labels, AI prompts, UI styling) |
+| Suggestions | `CrmSuggestions` | Generic AI-powered contact update suggestions from transcripts |
+| Token Refresh | `Workers.CrmTokenRefresher` | Single Oban worker dispatching by `"provider"` arg |
+| Modal UI | `CrmModalComponent` | Single parameterized LiveComponent for all CRMs |
+| LiveView | `MeetingLive.Show` | 3 generic `handle_info` handlers for search/suggest/apply |
+| AI | `AIContentGeneratorApi.generate_crm_suggestions/3` | Single callback, prompt templated from config |
 
-The modal component (`crm_modal_component.ex`) is a single parameterized LiveComponent that handles both CRMs — it receives a `crm_config` map that specifies the CRM name, message atoms, button text, and styling.
+### Adding a New CRM Provider
+
+To add a new CRM (e.g. Pipedrive), follow these steps:
+
+1. **Register the provider in `CRM.ProviderConfig`** (`lib/social_scribe/crm/provider_config.ex`):
+   ```elixir
+   "pipedrive" => %{
+     name: "pipedrive",
+     display_name: "Pipedrive",
+     api_config_key: :pipedrive_api,
+     field_labels: %{"firstname" => "First Name", ...},
+     ai_field_descriptions: "- Phone numbers (phone)\n- Email ...",
+     ai_field_names: "firstname, lastname, email, phone, ...",
+     modal_submit_text: "Update Pipedrive",
+     modal_submit_class: "bg-green-500 hover:bg-green-600",
+     button_class: "bg-green-500 hover:bg-green-600"
+   }
+   ```
+
+2. **Implement `CrmApiBehaviour`** in a new API module (e.g. `lib/social_scribe/pipedrive_api.ex`):
+   ```elixir
+   defmodule SocialScribe.PipedriveApi do
+     @behaviour SocialScribe.CrmApiBehaviour
+     # Implement: search_contacts/2, get_contact/2, update_contact/3, apply_updates/3, list_contacts/1
+   end
+   ```
+
+3. **Create a token refresher** (e.g. `lib/social_scribe/pipedrive_token_refresher.ex`) and register it in `Workers.CrmTokenRefresher.@token_refreshers`.
+
+4. **Add an Oban cron entry** in `config/config.exs`:
+   ```elixir
+   {"*/5 * * * *", SocialScribe.Workers.CrmTokenRefresher, args: %{"provider" => "pipedrive"}}
+   ```
+
+5. **Create Ueberauth OAuth strategy** (e.g. `lib/ueberauth/strategy/pipedrive.ex`) and add the route + callback handler in `AuthController`.
+
+6. **Wire up the config** in `config/dev.exs` and `config/test.exs`:
+   ```elixir
+   config :social_scribe, :pipedrive_api, SocialScribe.PipedriveApi
+   ```
+
+7. **Register mock in `test/test_helper.exs`**:
+   ```elixir
+   Mox.defmock(SocialScribe.PipedriveApiMock, for: SocialScribe.CrmApiBehaviour)
+   ```
+
+That's it — no changes needed to `CrmSuggestions`, `CrmModalComponent`, `MeetingLive.Show`, `ChatAI`, or any AI prompt logic. They all work generically off the provider config.
 
 ---
 
@@ -204,7 +252,7 @@ Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 mix setup                        # Full setup: deps, database, assets
 mix phx.server                   # Start dev server
 iex -S mix phx.server            # Start with IEx shell
-mix test                         # Run all tests (273+ tests)
+mix test                         # Run all tests (315+ tests)
 mix test test/path/file.exs      # Run single test file
 mix test test/path/file.exs:42   # Run test at line number
 mix format                       # Format code
@@ -244,34 +292,28 @@ mix ecto.reset                   # Drop, create, migrate, seed
 * **OAuth 2.0 Flow:** Handles authorization code flow with HubSpot's `/oauth/authorize` and `/oauth/v1/token` endpoints
 * **Credential Storage:** Credentials stored in `user_credentials` table with `provider: "hubspot"`, including `token`, `refresh_token`, and `expires_at`
 * **Token Refresh:**
-    * `HubspotTokenRefresher` Oban cron worker runs every 5 minutes to proactively refresh tokens expiring within 10 minutes
+    * `Workers.CrmTokenRefresher` Oban cron worker (parameterized per provider) runs every 5 minutes to proactively refresh tokens expiring within 10 minutes
     * Internal `with_token_refresh/2` wrapper automatically refreshes expired tokens on API calls and retries the request
     * Refresh failures are logged; users are prompted to re-authenticate if refresh token is invalid
 
-### HubSpot Modal UI
+### CRM Modal UI
 
-* **Unified CRM Component:** Both HubSpot and Salesforce use `CrmModalComponent` — a single parameterized LiveComponent
-* **Contact Search:** Debounced input triggers HubSpot API search, results displayed in dropdown
-* **AI Suggestions:** Fetched via `HubspotSuggestions.generate_suggestions` which calls Gemini with transcript context
-* **Suggestion Cards:** Each card displays:
-    * Field label
-    * Current value (strikethrough)
-    * Arrow
-    * Suggested value
-    * Timestamp link
-* **Selective Updates:** Checkbox per field allows selective updates; "Update HubSpot" button disabled until at least one field selected
-* **Form Submission:** Batch-updates selected contact properties via `HubspotApi.update_contact`
-* **Click-away Handler:** Closes dropdown without clearing selection
+* **Unified CRM Component:** All CRM providers use `CrmModalComponent` — a single parameterized LiveComponent driven by `CRM.ProviderConfig`
+* **Contact Search:** Debounced input triggers CRM API search via `CrmApiBehaviour.impl/1`, results displayed in dropdown
+* **AI Suggestions:** Generated via `CrmSuggestions.generate_suggestions_from_meeting/3` which calls Gemini with transcript context and provider-specific field config
+* **Suggestion Cards:** Each card displays field label, current value (strikethrough), arrow, suggested value, and timestamp link
+* **Selective Updates:** Checkbox per field allows selective updates; submit button disabled until at least one field selected
+* **Form Submission:** Batch-updates selected contact properties via the provider's `update_contact` callback
 
 ---
 
 ## Testing
 
 ```bash
-mix test    # 273+ tests, 0 failures
+mix test    # 315+ tests, 0 failures
 ```
 
-Tests use Mox for all external APIs, `Ecto.Adapters.SQL.Sandbox` for DB isolation, and Oban `testing: :manual` mode. Includes property-based tests with StreamData for HubSpot/Salesforce suggestion merging.
+Tests use Mox for all external APIs, `Ecto.Adapters.SQL.Sandbox` for DB isolation, and Oban `testing: :manual` mode. Includes property-based tests with StreamData for CRM suggestion merging.
 
 ---
 

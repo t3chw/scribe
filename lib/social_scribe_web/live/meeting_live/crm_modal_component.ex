@@ -1,4 +1,15 @@
 defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
+  @moduledoc """
+  Generic CRM modal LiveComponent used by all CRM providers.
+
+  Implements the search -> select -> suggest -> apply workflow:
+  1. User searches for a contact via the CRM API
+  2. Selects a contact from results
+  3. AI generates field update suggestions from the meeting transcript
+  4. User reviews and selectively applies updates
+
+  Parameterized via `crm_config` from `CRM.ProviderConfig`.
+  """
   use SocialScribeWeb, :live_component
 
   import SocialScribeWeb.ModalComponents
@@ -118,7 +129,7 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
 
     if String.length(query) >= 2 do
       socket = assign(socket, searching: true, error: nil, query: query, dropdown_open: true)
-      send(self(), {socket.assigns.crm_config.search_msg, query, socket.assigns.credential})
+      send(self(), {:crm_search, socket.assigns.crm_config.id, query, socket.assigns.credential})
       {:noreply, socket}
     else
       {:noreply, assign(socket, query: query, contacts: [], dropdown_open: query != "")}
@@ -145,7 +156,7 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
       query =
         "#{socket.assigns.selected_contact.firstname} #{socket.assigns.selected_contact.lastname}"
 
-      send(self(), {socket.assigns.crm_config.search_msg, query, socket.assigns.credential})
+      send(self(), {:crm_search, socket.assigns.crm_config.id, query, socket.assigns.credential})
       {:noreply, socket}
     end
   end
@@ -167,7 +178,7 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
 
       send(
         self(),
-        {socket.assigns.crm_config.suggest_msg, contact, socket.assigns.meeting,
+        {:generate_crm_suggestions, socket.assigns.crm_config.id, contact, socket.assigns.meeting,
          socket.assigns.credential}
       )
 
@@ -228,7 +239,7 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
 
     send(
       self(),
-      {socket.assigns.crm_config.apply_msg, updates, socket.assigns.selected_contact,
+      {:apply_crm_updates, socket.assigns.crm_config.id, updates, socket.assigns.selected_contact,
        socket.assigns.credential}
     )
 

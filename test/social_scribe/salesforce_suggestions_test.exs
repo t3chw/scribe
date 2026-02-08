@@ -1,7 +1,7 @@
 defmodule SocialScribe.SalesforceSuggestionsTest do
   use SocialScribe.DataCase, async: true
 
-  alias SocialScribe.SalesforceSuggestions
+  alias SocialScribe.CrmSuggestions
 
   describe "merge_with_contact/2" do
     test "merges suggestions with contact data and filters unchanged" do
@@ -33,7 +33,7 @@ defmodule SocialScribe.SalesforceSuggestionsTest do
         }
       ]
 
-      result = SalesforceSuggestions.merge_with_contact(suggestions, contact)
+      result = CrmSuggestions.merge_with_contact(suggestions, contact)
 
       # email changed, phone didn't
       assert length(result) == 1
@@ -59,7 +59,7 @@ defmodule SocialScribe.SalesforceSuggestionsTest do
         }
       ]
 
-      result = SalesforceSuggestions.merge_with_contact(suggestions, contact)
+      result = CrmSuggestions.merge_with_contact(suggestions, contact)
       assert result == []
     end
   end

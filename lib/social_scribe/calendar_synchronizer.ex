@@ -1,4 +1,4 @@
-defmodule SocialScribe.CalendarSyncronizer do
+defmodule SocialScribe.CalendarSynchronizer do
   @moduledoc """
   Fetches and syncs Google Calendar events.
   """

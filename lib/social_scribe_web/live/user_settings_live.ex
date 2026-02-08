@@ -1,8 +1,13 @@
 defmodule SocialScribeWeb.UserSettingsLive do
+  @moduledoc """
+  LiveView for user settings. Manages OAuth connections (Google, LinkedIn,
+  Facebook, HubSpot, Salesforce) and bot preferences.
+  """
   use SocialScribeWeb, :live_view
 
   alias SocialScribe.Accounts
   alias SocialScribe.Bots
+  alias SocialScribe.CRM.ProviderConfig
 
   @impl true
   def mount(_params, _session, socket) do
@@ -14,9 +19,12 @@ defmodule SocialScribeWeb.UserSettingsLive do
 
     facebook_accounts = Accounts.list_user_credentials(current_user, provider: "facebook")
 
-    hubspot_accounts = Accounts.list_user_credentials(current_user, provider: "hubspot")
-
-    salesforce_accounts = Accounts.list_user_credentials(current_user, provider: "salesforce")
+    crm_accounts =
+      ProviderConfig.all()
+      |> Enum.reduce(%{}, fn provider, acc ->
+        accounts = Accounts.list_user_credentials(current_user, provider: provider.name)
+        Map.put(acc, provider.name, accounts)
+      end)
 
     user_bot_preference =
       Bots.get_user_bot_preference(current_user.id) || %Bots.UserBotPreference{}
@@ -29,8 +37,7 @@ defmodule SocialScribeWeb.UserSettingsLive do
       |> assign(:google_accounts, google_accounts)
       |> assign(:linkedin_accounts, linkedin_accounts)
       |> assign(:facebook_accounts, facebook_accounts)
-      |> assign(:hubspot_accounts, hubspot_accounts)
-      |> assign(:salesforce_accounts, salesforce_accounts)
+      |> assign(:crm_accounts, crm_accounts)
       |> assign(:user_bot_preference, user_bot_preference)
       |> assign(:user_bot_preference_form, to_form(changeset))
 

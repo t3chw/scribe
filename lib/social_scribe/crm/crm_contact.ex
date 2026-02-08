@@ -1,4 +1,8 @@
 defmodule SocialScribe.CRM.CRMContact do
+  @moduledoc """
+  Schema for locally cached CRM contacts. Stores a normalized subset of
+  contact fields synced from any CRM provider (HubSpot, Salesforce, etc.).
+  """
   use Ecto.Schema
   import Ecto.Changeset
 

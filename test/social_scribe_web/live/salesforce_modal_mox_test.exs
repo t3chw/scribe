@@ -113,7 +113,7 @@ defmodule SocialScribeWeb.SalesforceModalMoxTest do
       end)
 
       SocialScribe.AIContentGeneratorMock
-      |> expect(:generate_salesforce_suggestions, fn _meeting, _contact_name ->
+      |> expect(:generate_crm_suggestions, fn _meeting, _contact_name, _crm_config ->
         {:ok, mock_suggestions}
       end)
 
@@ -152,7 +152,10 @@ defmodule SocialScribeWeb.SalesforceModalMoxTest do
       end)
 
       assert {:ok, ^expected} =
-               SocialScribe.SalesforceApiBehaviour.search_contacts(credential, "test query")
+               SocialScribe.CrmApiBehaviour.impl("salesforce").search_contacts(
+                 credential,
+                 "test query"
+               )
     end
 
     test "get_contact delegates to implementation", %{credential: credential} do
@@ -165,7 +168,7 @@ defmodule SocialScribeWeb.SalesforceModalMoxTest do
       end)
 
       assert {:ok, ^expected} =
-               SocialScribe.SalesforceApiBehaviour.get_contact(credential, "003abc")
+               SocialScribe.CrmApiBehaviour.impl("salesforce").get_contact(credential, "003abc")
     end
 
     test "update_contact delegates to implementation", %{credential: credential} do
@@ -180,7 +183,11 @@ defmodule SocialScribeWeb.SalesforceModalMoxTest do
       end)
 
       assert {:ok, ^expected} =
-               SocialScribe.SalesforceApiBehaviour.update_contact(credential, "003abc", updates)
+               SocialScribe.CrmApiBehaviour.impl("salesforce").update_contact(
+                 credential,
+                 "003abc",
+                 updates
+               )
     end
 
     test "apply_updates delegates to implementation", %{credential: credential} do
@@ -197,7 +204,7 @@ defmodule SocialScribeWeb.SalesforceModalMoxTest do
       end)
 
       assert {:ok, _} =
-               SocialScribe.SalesforceApiBehaviour.apply_updates(
+               SocialScribe.CrmApiBehaviour.impl("salesforce").apply_updates(
                  credential,
                  "003abc",
                  updates_list

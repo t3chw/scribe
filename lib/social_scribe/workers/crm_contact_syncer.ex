@@ -13,6 +13,7 @@ defmodule SocialScribe.Workers.CRMContactSyncer do
   alias SocialScribe.Repo
   alias SocialScribe.Accounts.UserCredential
   alias SocialScribe.CRM
+  alias SocialScribe.CrmApiBehaviour
 
   import Ecto.Query
 
@@ -57,7 +58,7 @@ defmodule SocialScribe.Workers.CRMContactSyncer do
         :ok
 
       credential ->
-        case provider.behaviour_module.list_contacts(credential) do
+        case CrmApiBehaviour.impl(provider.name).list_contacts(credential) do
           {:ok, contacts} ->
             CRM.upsert_contacts(user_id, provider.name, contacts)
 
