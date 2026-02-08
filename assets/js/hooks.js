@@ -268,7 +268,13 @@ Hooks.LocalTime = {
         const ampm = h >= 12 ? "pm" : "am"
         const h12 = h % 12 || 12
         const months = ["January","February","March","April","May","June","July","August","September","October","November","December"]
-        this.el.textContent = `${h12}:${m}${ampm} - ${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`
+        const format = this.el.dataset.format
+
+        if (format === "date-time") {
+            this.el.textContent = `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} at ${h12}:${m} ${ampm.toUpperCase()}`
+        } else {
+            this.el.textContent = `${h12}:${m}${ampm} - ${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`
+        }
     }
 }
 
