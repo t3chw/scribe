@@ -198,24 +198,23 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
             <% end %>
           </div>
         <% end %>
-        <div :if={@loading} class="flex justify-start">
-          <div class="text-sm text-slate-400">
-            <div class="flex space-x-1.5">
-              <div
-                class="w-2 h-2 bg-slate-300 rounded-full animate-bounce"
-                style="animation-delay: 0ms"
-              >
-              </div>
-              <div
-                class="w-2 h-2 bg-slate-300 rounded-full animate-bounce"
-                style="animation-delay: 150ms"
-              >
-              </div>
-              <div
-                class="w-2 h-2 bg-slate-300 rounded-full animate-bounce"
-                style="animation-delay: 300ms"
-              >
-              </div>
+        <div :if={@loading} id="chat-thinking" class="flex justify-start">
+          <div class="max-w-[85%] rounded-2xl rounded-bl-md bg-slate-100 px-4 py-3 text-sm">
+            <div class="flex items-center gap-2 text-slate-400">
+              <span class="text-xs font-medium">Thinking</span>
+              <span class="flex space-x-1">
+                <span class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></span>
+                <span
+                  class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"
+                  style="animation-delay: 150ms"
+                >
+                </span>
+                <span
+                  class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"
+                  style="animation-delay: 300ms"
+                >
+                </span>
+              </span>
             </div>
           </div>
         </div>
@@ -557,7 +556,11 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
         })
 
       messages = socket.assigns.messages ++ [user_msg]
-      socket = assign(socket, messages: messages, loading: true, input_value: "")
+
+      socket =
+        socket
+        |> assign(messages: messages, loading: true, input_value: "")
+        |> push_event("chat_scroll_bottom", %{})
 
       send(self(), {:chat_ai_process, conversation.id, message, socket.assigns.current_user.id})
 

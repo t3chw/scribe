@@ -16,6 +16,9 @@ Hooks.Clipboard = {
 Hooks.ChatScroll = {
     mounted() {
         this.scrollToBottom()
+        this.handleEvent("chat_scroll_bottom", () => {
+            requestAnimationFrame(() => this.scrollToBottom())
+        })
     },
     updated() {
         this.scrollToBottom()
