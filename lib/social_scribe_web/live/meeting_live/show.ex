@@ -106,7 +106,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
 
   @impl true
   def handle_info({:generate_suggestions, contact, meeting, _credential}, socket) do
-    case HubspotSuggestions.generate_suggestions_from_meeting(meeting) do
+    case HubspotSuggestions.generate_suggestions_from_meeting(meeting, contact.display_name) do
       {:ok, suggestions} ->
         merged = HubspotSuggestions.merge_with_contact(suggestions, contact)
 
@@ -173,7 +173,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
 
   @impl true
   def handle_info({:generate_salesforce_suggestions, contact, meeting, _credential}, socket) do
-    case SalesforceSuggestions.generate_suggestions_from_meeting(meeting) do
+    case SalesforceSuggestions.generate_suggestions_from_meeting(meeting, contact.display_name) do
       {:ok, suggestions} ->
         merged = SalesforceSuggestions.merge_with_contact(suggestions, contact)
 

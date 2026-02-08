@@ -113,7 +113,7 @@ defmodule SocialScribeWeb.SalesforceModalMoxTest do
       end)
 
       SocialScribe.AIContentGeneratorMock
-      |> expect(:generate_salesforce_suggestions, fn _meeting ->
+      |> expect(:generate_salesforce_suggestions, fn _meeting, _contact_name ->
         {:ok, mock_suggestions}
       end)
 

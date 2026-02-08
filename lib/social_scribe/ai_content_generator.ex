@@ -46,7 +46,7 @@ defmodule SocialScribe.AIContentGenerator do
   end
 
   @impl SocialScribe.AIContentGeneratorApi
-  def generate_hubspot_suggestions(meeting) do
+  def generate_hubspot_suggestions(meeting, contact_name) do
     case Meetings.generate_prompt_for_meeting(meeting) do
       {:error, reason} ->
         {:error, reason}
@@ -68,6 +68,10 @@ defmodule SocialScribe.AIContentGenerator do
         - Twitter handle (twitter_handle)
 
         IMPORTANT: Only extract information that is EXPLICITLY mentioned in the transcript. Do not infer or guess.
+
+        CRITICAL: Only extract information about the contact named "#{contact_name}".
+        Ignore information about other people in the meeting. If the selected contact
+        is not mentioned or no relevant information is found, return an empty array [].
 
         The transcript includes timestamps in [MM:SS] format at the start of each line.
 
@@ -102,7 +106,7 @@ defmodule SocialScribe.AIContentGenerator do
   end
 
   @impl SocialScribe.AIContentGeneratorApi
-  def generate_salesforce_suggestions(meeting) do
+  def generate_salesforce_suggestions(meeting, contact_name) do
     case Meetings.generate_prompt_for_meeting(meeting) do
       {:error, reason} ->
         {:error, reason}
@@ -121,6 +125,10 @@ defmodule SocialScribe.AIContentGenerator do
         - Physical address details (address, city, state, zip, country)
 
         IMPORTANT: Only extract information that is EXPLICITLY mentioned in the transcript. Do not infer or guess.
+
+        CRITICAL: Only extract information about the contact named "#{contact_name}".
+        Ignore information about other people in the meeting. If the selected contact
+        is not mentioned or no relevant information is found, return an empty array [].
 
         The transcript includes timestamps in [MM:SS] format at the start of each line.
 

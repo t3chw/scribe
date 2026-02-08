@@ -28,7 +28,8 @@ defmodule SocialScribe.SalesforceSuggestions do
   """
   def generate_suggestions(%UserCredential{} = credential, contact_id, meeting) do
     with {:ok, contact} <- SalesforceApi.get_contact(credential, contact_id),
-         {:ok, ai_suggestions} <- AIContentGeneratorApi.generate_salesforce_suggestions(meeting) do
+         {:ok, ai_suggestions} <-
+           AIContentGeneratorApi.generate_salesforce_suggestions(meeting, contact.display_name) do
       suggestions =
         ai_suggestions
         |> Enum.map(fn suggestion ->
@@ -54,8 +55,8 @@ defmodule SocialScribe.SalesforceSuggestions do
   @doc """
   Generates suggestions without fetching contact data.
   """
-  def generate_suggestions_from_meeting(meeting) do
-    case AIContentGeneratorApi.generate_salesforce_suggestions(meeting) do
+  def generate_suggestions_from_meeting(meeting, contact_name) do
+    case AIContentGeneratorApi.generate_salesforce_suggestions(meeting, contact_name) do
       {:ok, ai_suggestions} ->
         suggestions =
           ai_suggestions
