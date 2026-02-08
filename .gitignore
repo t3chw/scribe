@@ -56,6 +56,11 @@ TESTING_GUIDE.md
 # Local dev scripts
 /priv/scripts/
 
+# Private keys and certificates
+*.key
+*.pem
+*.crt
+
 # OS files
 .DS_Store
 Thumbs.db

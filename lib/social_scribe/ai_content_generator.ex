@@ -147,7 +147,7 @@ defmodule SocialScribe.AIContentGenerator do
     if is_nil(api_key) or api_key == "" do
       {:error, {:config_error, "Gemini API key is missing - set GEMINI_API_KEY env var"}}
     else
-      path = "/#{@gemini_model}:generateContent?key=#{api_key}"
+      path = "/#{@gemini_model}:generateContent"
 
       payload = %{
         contents: [
@@ -157,7 +157,7 @@ defmodule SocialScribe.AIContentGenerator do
         ]
       }
 
-      case Tesla.post(client(), path, payload) do
+      case Tesla.post(client(api_key), path, payload) do
         {:ok, %Tesla.Env{status: 200, body: body}} ->
           text_path = [
             "candidates",
@@ -182,10 +182,11 @@ defmodule SocialScribe.AIContentGenerator do
     end
   end
 
-  defp client do
+  defp client(api_key) do
     Tesla.client([
       {Tesla.Middleware.BaseUrl, @gemini_api_base_url},
-      Tesla.Middleware.JSON
+      Tesla.Middleware.JSON,
+      {Tesla.Middleware.Headers, [{"x-goog-api-key", api_key}]}
     ])
   end
 end

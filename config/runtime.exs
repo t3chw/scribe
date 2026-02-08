@@ -122,6 +122,8 @@ if config_env() == :prod do
     check_origin: ["https://#{host}", "https://*.#{host}"],
     secret_key_base: secret_key_base
 
+  config :social_scribe, SocialScribeWeb.Endpoint, force_ssl: [hsts: true]
+
   config :ueberauth, Ueberauth.Strategy.Google.OAuth,
     redirect_uri: "https://" <> host <> "/auth/google/callback"
 

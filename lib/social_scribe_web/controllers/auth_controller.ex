@@ -23,9 +23,6 @@ defmodule SocialScribeWeb.AuthController do
         "provider" => "google"
       })
       when not is_nil(user) do
-    Logger.info("Google OAuth")
-    Logger.info(auth)
-
     case Accounts.find_or_create_user_credential(user, auth) do
       {:ok, _credential} ->
         conn
@@ -42,21 +39,13 @@ defmodule SocialScribeWeb.AuthController do
   def callback(%{assigns: %{ueberauth_auth: auth, current_user: user}} = conn, %{
         "provider" => "linkedin"
       }) do
-    Logger.info("LinkedIn OAuth")
-    Logger.info(auth)
-
     case Accounts.find_or_create_user_credential(user, auth) do
-      {:ok, credential} ->
-        Logger.info("credential")
-        Logger.info(credential)
-
+      {:ok, _credential} ->
         conn
         |> put_flash(:info, "LinkedIn account added successfully.")
         |> redirect(to: ~p"/dashboard/settings")
 
-      {:error, reason} ->
-        Logger.error(reason)
-
+      {:error, _reason} ->
         conn
         |> put_flash(:error, "Could not add LinkedIn account.")
         |> redirect(to: ~p"/dashboard/settings")
@@ -67,9 +56,6 @@ defmodule SocialScribeWeb.AuthController do
         "provider" => "facebook"
       })
       when not is_nil(user) do
-    Logger.info("Facebook OAuth")
-    Logger.info(auth)
-
     case Accounts.find_or_create_user_credential(user, auth) do
       {:ok, credential} ->
         case FacebookApi.fetch_user_pages(credential.uid, credential.token) do
@@ -101,9 +87,6 @@ defmodule SocialScribeWeb.AuthController do
         "provider" => "hubspot"
       })
       when not is_nil(user) do
-    Logger.info("HubSpot OAuth")
-    Logger.info(inspect(auth))
-
     hub_id = to_string(auth.uid)
 
     credential_attrs = %{
@@ -145,11 +128,21 @@ defmodule SocialScribeWeb.AuthController do
         "provider" => "salesforce"
       })
       when not is_nil(user) do
-    Logger.info("Salesforce OAuth")
-    Logger.info(inspect(auth))
-
     org_id = to_string(auth.uid)
     instance_url = auth.extra.raw_info[:instance_url] || auth.extra.raw_info["instance_url"]
+
+    # Validate instance_url is a legitimate Salesforce domain
+    instance_url =
+      if is_binary(instance_url) and
+           String.match?(
+             instance_url,
+             ~r/^https:\/\/[a-zA-Z0-9-]+\.(salesforce\.com|force\.com|my\.salesforce\.com)(\/.*)?$/
+           ) do
+        instance_url
+      else
+        Logger.warning("Invalid Salesforce instance_url received, using default")
+        "https://login.salesforce.com"
+      end
 
     credential_attrs = %{
       user_id: user.id,
@@ -188,17 +181,13 @@ defmodule SocialScribeWeb.AuthController do
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
-    Logger.info("Google OAuth Login")
-    Logger.info(auth)
-
     case Accounts.find_or_create_user_from_oauth(auth) do
       {:ok, user} ->
         conn
         |> UserAuth.log_in_user(user)
 
-      {:error, reason} ->
-        Logger.info("error")
-        Logger.info(reason)
+      {:error, _reason} ->
+        Logger.error("OAuth login failed")
 
         conn
         |> put_flash(:error, "There was an error signing you in.")
@@ -207,8 +196,7 @@ defmodule SocialScribeWeb.AuthController do
   end
 
   def callback(conn, _params) do
-    Logger.error("OAuth Login")
-    Logger.error(conn)
+    Logger.error("OAuth callback failed - no auth data")
 
     conn
     |> put_flash(:error, "There was an error signing you in. Please try again.")

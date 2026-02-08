@@ -3,10 +3,10 @@ defmodule SocialScribe.Accounts.UserCredential do
   import Ecto.Changeset
 
   schema "user_credentials" do
-    field :token, :string
+    field :token, :string, redact: true
     field :uid, :string
     field :provider, :string
-    field :refresh_token, :string
+    field :refresh_token, :string, redact: true
     field :expires_at, :utc_datetime
     field :email, :string
     field :metadata, :map, default: %{}

@@ -26,12 +26,12 @@
         <p class="text-sm text-slate-500 mb-2">
           {automation.platform}
         </p>
-        <p class="text-sm text-slate-700 mb-2">
-          {automation.description |> String.replace("\n", "<br/>") |> raw()}
+        <p class="text-sm text-slate-700 mb-2 whitespace-pre-line">
+          {automation.description}
         </p>
 
-        <p class="text-sm text-slate-700 mb-2 line-clamp-3">
-          Example: {automation.example |> String.replace("\n", "<br/>") |> raw()}
+        <p class="text-sm text-slate-700 mb-2 line-clamp-3 whitespace-pre-line">
+          Example: {automation.example}
         </p>
       </.link>
       <div class="mt-4 sm:mt-0 sm:ml-4 flex-shrink-0">

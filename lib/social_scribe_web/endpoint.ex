@@ -8,6 +8,7 @@ defmodule SocialScribeWeb.Endpoint do
     store: :cookie,
     key: "_social_scribe_key",
     signing_salt: "Nk7wioKt",
+    encryption_salt: "encrypted_cookie_salt",
     same_site: "Lax"
   ]
 

@@ -21,9 +21,9 @@ defmodule SocialScribeWeb.UserSessionController do
   # TODO: Add Google OAuth login
 
   defp create(conn, %{"user" => user_params}, info) do
-    %{"email" => email, "password" => _password} = user_params
+    %{"email" => email, "password" => password} = user_params
 
-    if user = Accounts.get_user_by_email(email) do
+    if user = Accounts.get_user_by_email_and_password(email, password) do
       conn
       |> put_flash(:info, info)
       |> UserAuth.log_in_user(user, user_params)

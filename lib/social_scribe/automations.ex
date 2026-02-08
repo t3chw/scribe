@@ -18,6 +18,14 @@ defmodule SocialScribe.Automations do
   end
 
   @doc """
+  Returns the list of automations for a specific user.
+  """
+  def list_user_automations(user_id) do
+    from(a in Automation, where: a.user_id == ^user_id, order_by: a.name)
+    |> Repo.all()
+  end
+
+  @doc """
   Returns the list of automations.
 
   ## Examples
