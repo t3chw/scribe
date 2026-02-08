@@ -254,7 +254,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
           <div :for={segment <- @meeting_transcript.content["data"]} class="mb-3">
             <p>
               <span class="font-semibold text-indigo-600">
-                {segment["speaker"] || "Unknown Speaker"}:
+                {get_speaker_name(segment)}:
               </span>
               {Enum.map_join(segment["words"] || [], " ", & &1["text"])}
             </p>
@@ -268,4 +268,8 @@ defmodule SocialScribeWeb.MeetingLive.Show do
     </div>
     """
   end
+
+  defp get_speaker_name(%{"participant" => %{"name" => name}}) when is_binary(name), do: name
+  defp get_speaker_name(%{"speaker" => name}) when is_binary(name), do: name
+  defp get_speaker_name(_), do: "Unknown Speaker"
 end

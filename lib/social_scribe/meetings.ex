@@ -544,7 +544,7 @@ defmodule SocialScribe.Meetings do
 
   defp format_transcript_for_prompt(transcript_segments) when is_list(transcript_segments) do
     Enum.map_join(transcript_segments, "\n", fn segment ->
-      speaker = Map.get(segment, "speaker", "Unknown Speaker")
+      speaker = extract_speaker_name(segment)
       words = Map.get(segment, "words", [])
       text = Enum.map_join(words, " ", &Map.get(&1, "text", ""))
       timestamp = format_timestamp(List.first(words))
@@ -553,6 +553,10 @@ defmodule SocialScribe.Meetings do
   end
 
   defp format_transcript_for_prompt(_), do: ""
+
+  defp extract_speaker_name(%{"participant" => %{"name" => name}}) when is_binary(name), do: name
+  defp extract_speaker_name(%{"speaker" => name}) when is_binary(name), do: name
+  defp extract_speaker_name(_), do: "Unknown Speaker"
 
   defp format_timestamp(nil), do: "00:00"
 
