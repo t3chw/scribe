@@ -88,17 +88,8 @@ defmodule SocialScribeWeb.LiveHooks do
 
             {:chat_ai_result, conversation_id, assistant_msg}
 
-          {:error, reason} ->
-            error_msg = "Sorry, I encountered an error: #{inspect(reason)}"
-
-            {:ok, assistant_msg} =
-              Chat.add_message(conversation_id, %{
-                role: "assistant",
-                content: error_msg,
-                metadata: %{}
-              })
-
-            {:chat_ai_result, conversation_id, assistant_msg}
+          {:error, _reason} ->
+            {:chat_ai_error, conversation_id}
         end
       end)
 
@@ -114,7 +105,22 @@ defmodule SocialScribeWeb.LiveHooks do
       SocialScribeWeb.ChatLive.ChatPanelComponent,
       id: "chat-panel",
       messages: conversation.messages,
-      loading: false
+      loading: false,
+      error: nil
+    )
+
+    {:halt, assign(socket, :chat_task_ref, nil)}
+  end
+
+  defp handle_chat_info({ref, {:chat_ai_error, _conversation_id}}, socket)
+       when ref == socket.assigns.chat_task_ref do
+    Process.demonitor(ref, [:flush])
+
+    Phoenix.LiveView.send_update(
+      SocialScribeWeb.ChatLive.ChatPanelComponent,
+      id: "chat-panel",
+      loading: false,
+      error: "Something went wrong. The AI couldn't generate a response."
     )
 
     {:halt, assign(socket, :chat_task_ref, nil)}
@@ -125,7 +131,8 @@ defmodule SocialScribeWeb.LiveHooks do
     Phoenix.LiveView.send_update(
       SocialScribeWeb.ChatLive.ChatPanelComponent,
       id: "chat-panel",
-      loading: false
+      loading: false,
+      error: "Something went wrong. Please try again."
     )
 
     {:halt, assign(socket, :chat_task_ref, nil)}

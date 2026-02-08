@@ -131,6 +131,7 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
         <.chat_tab
           messages={@messages}
           loading={@loading}
+          error={@error}
           input_value={@input_value}
           myself={@myself}
           conversation={@conversation}
@@ -146,6 +147,7 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
 
   attr :messages, :list, required: true
   attr :loading, :boolean, required: true
+  attr :error, :string, default: nil
   attr :input_value, :string, required: true
   attr :myself, :any, required: true
   attr :conversation, :any, required: true
@@ -216,6 +218,47 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
                 </span>
               </span>
             </div>
+          </div>
+        </div>
+        <div :if={@error} class="flex justify-start">
+          <div class="max-w-[85%] rounded-2xl rounded-bl-md bg-red-50 border border-red-200 px-4 py-3 text-sm">
+            <div class="flex items-center gap-2 text-red-600">
+              <svg
+                class="w-4 h-4 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+                />
+              </svg>
+              <span>{@error}</span>
+            </div>
+            <button
+              type="button"
+              phx-click="retry_message"
+              phx-target={@myself}
+              class="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-red-600 hover:text-red-800 transition-colors"
+            >
+              <svg
+                class="w-3.5 h-3.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M15.031 4.356v4.992"
+                />
+              </svg>
+              Retry
+            </button>
           </div>
         </div>
       </div>
@@ -452,6 +495,8 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
       |> assign_new(:mention_suggestions, fn -> [] end)
       |> assign_new(:syncing, fn -> false end)
       |> assign_new(:sync_status, fn -> nil end)
+      |> assign_new(:error, fn -> nil end)
+      |> assign_new(:last_request, fn -> nil end)
 
     {:ok, socket}
   end
@@ -559,12 +604,39 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
 
       socket =
         socket
-        |> assign(messages: messages, loading: true, input_value: "")
+        |> assign(
+          messages: messages,
+          loading: true,
+          error: nil,
+          input_value: "",
+          last_request: %{
+            conversation_id: conversation.id,
+            message: message,
+            user_id: socket.assigns.current_user.id
+          }
+        )
         |> push_event("chat_scroll_bottom", %{})
 
       send(self(), {:chat_ai_process, conversation.id, message, socket.assigns.current_user.id})
 
       {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("retry_message", _params, socket) do
+    case socket.assigns.last_request do
+      %{conversation_id: conv_id, message: message, user_id: user_id} ->
+        socket =
+          socket
+          |> assign(loading: true, error: nil)
+          |> push_event("chat_scroll_bottom", %{})
+
+        send(self(), {:chat_ai_process, conv_id, message, user_id})
+        {:noreply, socket}
+
+      _ ->
+        {:noreply, socket}
     end
   end
 
