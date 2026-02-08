@@ -157,29 +157,10 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
     <div class="flex-1 flex flex-col min-h-0">
       <%!-- Messages area --%>
       <div id="chat-messages" phx-hook="ChatScroll" class="flex-1 overflow-y-auto p-4 space-y-3">
-        <%= if Enum.empty?(@messages) do %>
-          <div class="flex flex-col items-center justify-center h-full px-6">
-            <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mb-3">
-              <svg
-                class="w-5 h-5 text-slate-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.5"
-                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                />
-              </svg>
-            </div>
-            <p class="text-sm text-slate-500 text-center">
-              I can answer questions about your meetings and data - just ask!
-            </p>
-          </div>
-        <% else %>
-          <%= for {message, idx} <- Enum.with_index(@messages) do %>
+        <div class="text-sm text-slate-500">
+          I can answer questions about Jump meetings and data – just ask!
+        </div>
+        <%= for {message, idx} <- Enum.with_index(@messages) do %>
             <.timestamp_separator
               :if={show_timestamp?(message, idx, @messages)}
               timestamp={message.inserted_at}
@@ -196,7 +177,7 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
               <% else %>
                 <div class="max-w-[85%] text-sm text-slate-800">
                   <div class="break-words">
-                    <%= for segment <- parse_ai_message_segments(message.content, message.metadata["mentions"]) do %>
+                    <%= for segment <- parse_ai_message_segments(strip_assistant_prefix(message.content), message.metadata["mentions"]) do %>
                       <.render_segment segment={segment} />
                     <% end %>
                   </div>
@@ -242,7 +223,6 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
               </div>
             </div>
           </div>
-        <% end %>
       </div>
 
       <%!-- Input area --%>
@@ -620,19 +600,14 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
   defp get_connected_sources(nil), do: [:meetings]
 
   defp get_connected_sources(current_user) do
-    sources = [:meetings]
+    crm_sources =
+      SocialScribe.CRM.ProviderConfig.all()
+      |> Enum.filter(fn provider ->
+        Accounts.get_user_crm_credential(current_user.id, provider.name) != nil
+      end)
+      |> Enum.map(fn provider -> String.to_existing_atom(provider.name) end)
 
-    sources =
-      if Accounts.get_user_hubspot_credential(current_user.id),
-        do: sources ++ [:hubspot],
-        else: sources
-
-    sources =
-      if Accounts.get_user_salesforce_credential(current_user.id),
-        do: sources ++ [:salesforce],
-        else: sources
-
-    sources
+    [:meetings] ++ crm_sources
   end
 
   defp show_timestamp?(message, idx, messages) do
@@ -684,9 +659,21 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
 
   def parse_ai_message_segments(content, _), do: [{:text, content}]
 
-  defp source_dot_color(%{"crm" => "hubspot"}), do: "bg-orange-500"
-  defp source_dot_color(%{"crm" => "salesforce"}), do: "bg-blue-500"
+  defp strip_assistant_prefix(text) do
+    String.replace(text, ~r/^ASSISTANT:\s*/i, "")
+  end
+
   defp source_dot_color(%{"type" => "meeting"}), do: "bg-slate-800"
+
+  defp source_dot_color(%{"crm" => crm_name}) do
+    case SocialScribe.CRM.ProviderConfig.get(crm_name) do
+      %{chat_dot_color: color} -> color
+      _ -> "bg-slate-400"
+    end
+  rescue
+    KeyError -> "bg-slate-400"
+  end
+
   defp source_dot_color(_), do: "bg-slate-400"
 
   defp unique_source_types(sources) do
@@ -697,9 +684,17 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
     end)
   end
 
-  defp source_label(%{"crm" => "hubspot"}), do: "HubSpot"
-  defp source_label(%{"crm" => "salesforce"}), do: "Salesforce"
   defp source_label(%{"type" => "meeting"}), do: "Meetings"
+
+  defp source_label(%{"crm" => crm_name}) do
+    case SocialScribe.CRM.ProviderConfig.get(crm_name) do
+      %{display_name: name} -> name
+      _ -> "Other"
+    end
+  rescue
+    KeyError -> "Other"
+  end
+
   defp source_label(_), do: "Other"
 
   defp source_tooltip(%{"type" => "meeting", "title" => title, "date" => date}),
@@ -711,16 +706,33 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
   defp source_tooltip(_), do: nil
 
   defp connected_source_color(:meetings), do: "bg-slate-800"
-  defp connected_source_color(:hubspot), do: "bg-orange-500"
-  defp connected_source_color(:salesforce), do: "bg-blue-500"
+
+  defp connected_source_color(provider_atom) do
+    case SocialScribe.CRM.ProviderConfig.get(Atom.to_string(provider_atom)) do
+      %{chat_dot_color: color} -> color
+      _ -> "bg-slate-400"
+    end
+  end
 
   defp mention_source_color("meetings"), do: "bg-slate-800"
-  defp mention_source_color("hubspot"), do: "bg-orange-500"
-  defp mention_source_color("salesforce"), do: "bg-blue-500"
-  defp mention_source_color(_), do: "bg-slate-400"
+
+  defp mention_source_color(provider_name) do
+    case SocialScribe.CRM.ProviderConfig.get(provider_name) do
+      %{chat_dot_color: color} -> color
+      _ -> "bg-slate-400"
+    end
+  rescue
+    KeyError -> "bg-slate-400"
+  end
 
   defp mention_source_label("meetings"), do: "Meetings"
-  defp mention_source_label("hubspot"), do: "HubSpot"
-  defp mention_source_label("salesforce"), do: "Salesforce"
-  defp mention_source_label(_), do: "Other"
+
+  defp mention_source_label(provider_name) do
+    case SocialScribe.CRM.ProviderConfig.get(provider_name) do
+      %{display_name: name} -> name
+      _ -> "Other"
+    end
+  rescue
+    KeyError -> "Other"
+  end
 end

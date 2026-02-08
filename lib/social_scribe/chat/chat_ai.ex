@@ -38,7 +38,7 @@ defmodule SocialScribe.Chat.ChatAI do
       {:ok, response} ->
         {:ok,
          %{
-           content: response,
+           content: strip_role_prefix(response),
            metadata: %{
              "sources" => crm_sources ++ meeting_sources,
              "mentions" => mentions
@@ -244,6 +244,10 @@ defmodule SocialScribe.Chat.ChatAI do
     else
       prompt
     end
+  end
+
+  defp strip_role_prefix(text) do
+    String.replace(text, ~r/^ASSISTANT:\s*/i, "")
   end
 
   defp format_contact_for_prompt(contact) do

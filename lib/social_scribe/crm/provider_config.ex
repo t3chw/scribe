@@ -18,6 +18,7 @@ defmodule SocialScribe.CRM.ProviderConfig do
       display_name: "HubSpot",
       api_config_key: :hubspot_api,
       api_module: SocialScribe.HubspotApi,
+      chat_dot_color: "bg-orange-500",
       field_labels: %{
         "firstname" => "First Name",
         "lastname" => "Last Name",
@@ -57,6 +58,7 @@ defmodule SocialScribe.CRM.ProviderConfig do
       display_name: "Salesforce",
       api_config_key: :salesforce_api,
       api_module: SocialScribe.SalesforceApi,
+      chat_dot_color: "bg-blue-500",
       field_labels: %{
         "firstname" => "First Name",
         "lastname" => "Last Name",

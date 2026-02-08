@@ -46,7 +46,7 @@ defmodule SocialScribeWeb.ChatPanelTest do
       render_click(view, "toggle_chat")
       html = render(view)
 
-      assert html =~ "I can answer questions about your meetings and data"
+      assert html =~ "I can answer questions about Jump meetings and data"
     end
 
     test "chat panel renders on meetings page too", %{conn: conn} do
