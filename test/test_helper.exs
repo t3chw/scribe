@@ -10,6 +10,14 @@ Mox.defmock(SocialScribe.AIContentGeneratorMock, for: SocialScribe.AIContentGene
 Mox.defmock(SocialScribe.HubspotApiMock, for: SocialScribe.CrmApiBehaviour)
 Mox.defmock(SocialScribe.SalesforceApiMock, for: SocialScribe.CrmApiBehaviour)
 
+Mox.defmock(SocialScribe.HubspotTokenRefresherMock,
+  for: SocialScribe.CrmTokenRefresherBehaviour
+)
+
+Mox.defmock(SocialScribe.SalesforceTokenRefresherMock,
+  for: SocialScribe.CrmTokenRefresherBehaviour
+)
+
 Application.put_env(:social_scribe, :google_calendar_api, SocialScribe.GoogleCalendarApiMock)
 Application.put_env(:social_scribe, :token_refresher_api, SocialScribe.TokenRefresherMock)
 Application.put_env(:social_scribe, :recall_api, SocialScribe.RecallApiMock)

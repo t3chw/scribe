@@ -408,6 +408,11 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
   end
 
   defp markdown_to_html(text) do
+    # NOTE: `text` has already been HTML-escaped at this point, so user content
+    # cannot contain real HTML tags (only entities like &lt;). The regex
+    # replacements below only inject our own safe structural tags around
+    # already-escaped content. We add an allowlist-based sanitization pass
+    # at the end to ensure only our intended tags survive.
     text
     # Bold: **text** → <strong>text</strong>
     |> String.replace(~r/\*\*(.+?)\*\*/, "<strong>\\1</strong>")
@@ -423,6 +428,21 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
     # Clean up extra <br> around lists
     |> String.replace(~r/<br>\s*<ul/, "<ul")
     |> String.replace(~r/<\/ul>\s*<br>/, "</ul>")
+    # Sanitize: strip any tags except our safe allowlist
+    |> sanitize_html()
+  end
+
+  @allowed_tags ~w(strong em li ul br)
+  defp sanitize_html(html) do
+    # Remove any HTML tags that aren't in our allowlist.
+    # This catches edge cases where escaped entities could reconstruct tags.
+    Regex.replace(~r/<\/?([a-zA-Z][a-zA-Z0-9]*)[^>]*>/, html, fn full_match, tag_name ->
+      if String.downcase(tag_name) in @allowed_tags do
+        full_match
+      else
+        ""
+      end
+    end)
   end
 
   attr :timestamp, :any, required: true
@@ -525,18 +545,17 @@ defmodule SocialScribeWeb.ChatLive.ChatPanelComponent do
 
   @impl true
   def handle_event("load_conversation", %{"id" => id}, socket) do
-    conversation = Chat.get_conversation_with_messages(id)
+    conversation = Chat.get_conversation_with_messages(id, socket.assigns.current_user.id)
 
-    if conversation.user_id != socket.assigns.current_user.id do
+    {:noreply,
+     assign(socket,
+       active_tab: :chat,
+       conversation: conversation,
+       messages: conversation.messages
+     )}
+  rescue
+    Ecto.NoResultsError ->
       {:noreply, socket}
-    else
-      {:noreply,
-       assign(socket,
-         active_tab: :chat,
-         conversation: conversation,
-         messages: conversation.messages
-       )}
-    end
   end
 
   @impl true

@@ -74,7 +74,7 @@ defmodule SocialScribeWeb.LiveHooks do
   defp handle_chat_info({:chat_ai_process, conversation_id, message, user_id}, socket) do
     task =
       Task.Supervisor.async_nolink(SocialScribe.TaskSupervisor, fn ->
-        conversation = Chat.get_conversation_with_messages(conversation_id)
+        conversation = Chat.get_conversation_with_messages(conversation_id, user_id)
         history = Enum.slice(conversation.messages, 0..-2//1)
 
         case ChatAI.process_message(message, user_id, history) do
@@ -99,7 +99,8 @@ defmodule SocialScribeWeb.LiveHooks do
   defp handle_chat_info({ref, {:chat_ai_result, conversation_id, _assistant_msg}}, socket)
        when ref == socket.assigns.chat_task_ref do
     Process.demonitor(ref, [:flush])
-    conversation = Chat.get_conversation_with_messages(conversation_id)
+    user_id = socket.assigns.current_user.id
+    conversation = Chat.get_conversation_with_messages(conversation_id, user_id)
 
     Phoenix.LiveView.send_update(
       SocialScribeWeb.ChatLive.ChatPanelComponent,

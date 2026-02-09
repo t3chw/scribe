@@ -3,6 +3,8 @@ defmodule SocialScribe.SalesforceTokenRefresher do
   Refreshes Salesforce OAuth tokens.
   """
 
+  @behaviour SocialScribe.CrmTokenRefresherBehaviour
+
   @salesforce_token_url "https://login.salesforce.com/services/oauth2/token"
 
   def client do

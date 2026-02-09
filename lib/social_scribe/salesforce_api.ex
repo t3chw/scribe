@@ -121,7 +121,9 @@ defmodule SocialScribe.SalesforceApi do
            ) do
         {:ok, %Tesla.Env{status: 204}} ->
           # Salesforce returns 204 No Content on success, fetch the updated contact
-          get_contact(credential, contact_id)
+          # Use `cred` (the potentially-refreshed credential) instead of the outer
+          # `credential` to avoid using a stale token for the follow-up GET.
+          get_contact(cred, contact_id)
 
         {:ok, %Tesla.Env{status: 200, body: body}} ->
           {:ok, format_contact(body)}
@@ -260,7 +262,7 @@ defmodule SocialScribe.SalesforceApi do
             Logger.info("Salesforce token expired, refreshing and retrying...")
             retry_with_fresh_token(credential, api_call)
           else
-            Logger.error("Salesforce API error: #{status} - #{inspect(body)}")
+            Logger.error("Salesforce API error: #{status} - #{sanitize_log(body)}")
             {:error, {:api_error, status, body}}
           end
 
@@ -275,11 +277,11 @@ defmodule SocialScribe.SalesforceApi do
       {:ok, refreshed_credential} ->
         case api_call.(refreshed_credential) do
           {:error, {:api_error, status, body}} ->
-            Logger.error("Salesforce API error after refresh: #{status} - #{inspect(body)}")
+            Logger.error("Salesforce API error after refresh: #{status} - #{sanitize_log(body)}")
             {:error, {:api_error, status, body}}
 
           {:error, {:http_error, reason}} ->
-            Logger.error("Salesforce HTTP error after refresh: #{inspect(reason)}")
+            Logger.error("Salesforce HTTP error after refresh: #{sanitize_log(reason)}")
             {:error, {:http_error, reason}}
 
           success ->
@@ -287,10 +289,27 @@ defmodule SocialScribe.SalesforceApi do
         end
 
       {:error, refresh_error} ->
-        Logger.error("Failed to refresh Salesforce token: #{inspect(refresh_error)}")
+        Logger.error("Failed to refresh Salesforce token: #{sanitize_log(refresh_error)}")
         {:error, {:token_refresh_failed, refresh_error}}
     end
   end
+
+  defp sanitize_log(body) when is_map(body) do
+    body
+    |> Map.take(["error", "errorCode", "message", "error_description"])
+    |> inspect()
+  end
+
+  defp sanitize_log(body) when is_list(body) do
+    body
+    |> Enum.map(fn
+      item when is_map(item) -> Map.take(item, ["error", "errorCode", "message"])
+      other -> other
+    end)
+    |> inspect()
+  end
+
+  defp sanitize_log(other), do: inspect(other)
 
   defp is_token_error?(401, _), do: true
 

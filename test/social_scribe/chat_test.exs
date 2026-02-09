@@ -48,6 +48,49 @@ defmodule SocialScribe.ChatTest do
       assert hd(loaded.messages).content == "Hello"
     end
 
+    test "get_conversation!/2 with user_id scoping returns the conversation" do
+      user = user_fixture()
+      {:ok, conversation} = Chat.create_conversation(%{user_id: user.id, title: "Scoped"})
+
+      loaded = Chat.get_conversation!(conversation.id, user.id)
+      assert loaded.id == conversation.id
+    end
+
+    test "get_conversation!/2 raises when user_id doesn't match" do
+      user1 = user_fixture()
+      user2 = user_fixture()
+      {:ok, conversation} = Chat.create_conversation(%{user_id: user1.id, title: "Private"})
+
+      assert_raise Ecto.NoResultsError, fn ->
+        Chat.get_conversation!(conversation.id, user2.id)
+      end
+    end
+
+    test "get_conversation_with_messages/2 with user_id scoping works" do
+      user = user_fixture()
+      {:ok, conversation} = Chat.create_conversation(%{user_id: user.id})
+
+      {:ok, _msg} =
+        Chat.add_message(conversation.id, %{
+          role: "user",
+          content: "Hello",
+          metadata: %{}
+        })
+
+      loaded = Chat.get_conversation_with_messages(conversation.id, user.id)
+      assert length(loaded.messages) == 1
+    end
+
+    test "get_conversation_with_messages/2 raises for wrong user" do
+      user1 = user_fixture()
+      user2 = user_fixture()
+      {:ok, conversation} = Chat.create_conversation(%{user_id: user1.id})
+
+      assert_raise Ecto.NoResultsError, fn ->
+        Chat.get_conversation_with_messages(conversation.id, user2.id)
+      end
+    end
+
     test "delete_conversation/1 deletes conversation and messages" do
       user = user_fixture()
       {:ok, conversation} = Chat.create_conversation(%{user_id: user.id})

@@ -116,7 +116,7 @@ defmodule SocialScribeWeb.AuthController do
         |> redirect(to: ~p"/dashboard/settings")
 
       {:error, reason} ->
-        Logger.error("Failed to save HubSpot credential: #{inspect(reason)}")
+        Logger.error("Failed to save HubSpot credential: #{sanitize_changeset_error(reason)}")
 
         conn
         |> put_flash(:error, "Could not connect HubSpot account.")
@@ -172,7 +172,7 @@ defmodule SocialScribeWeb.AuthController do
         |> redirect(to: ~p"/dashboard/settings")
 
       {:error, reason} ->
-        Logger.error("Failed to save Salesforce credential: #{inspect(reason)}")
+        Logger.error("Failed to save Salesforce credential: #{sanitize_changeset_error(reason)}")
 
         conn
         |> put_flash(:error, "Could not connect Salesforce account.")
@@ -202,4 +202,12 @@ defmodule SocialScribeWeb.AuthController do
     |> put_flash(:error, "There was an error signing you in. Please try again.")
     |> redirect(to: ~p"/")
   end
+
+  defp sanitize_changeset_error(%Ecto.Changeset{} = changeset) do
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {msg, _opts} -> msg end)
+    |> inspect()
+  end
+
+  defp sanitize_changeset_error(_other), do: "unexpected error"
 end

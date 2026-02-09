@@ -114,7 +114,7 @@ To add a new CRM (e.g. Pipedrive), follow these steps:
    end
    ```
 
-3. **Create a token refresher** (e.g. `lib/social_scribe/pipedrive_token_refresher.ex`) and register it in `Workers.CrmTokenRefresher.@token_refreshers`.
+3. **Create a token refresher** (e.g. `lib/social_scribe/pipedrive_token_refresher.ex`) implementing `SocialScribe.CrmTokenRefresherBehaviour`, and register it in the `@default_refreshers` map in `Workers.CrmTokenRefresher`.
 
 4. **Add an Oban cron entry** in `config/config.exs`:
    ```elixir

@@ -80,6 +80,11 @@ defmodule Ueberauth.Strategy.Hubspot.OAuth do
 
   @doc """
   Fetches token info from HubSpot to get hub_id and user email.
+
+  NOTE: HubSpot's API requires the access token in the URL path. This is HubSpot's
+  documented API design (not a Bearer header endpoint). Be aware that tokens may
+  appear in server access logs. Ensure production log levels do not capture full URLs,
+  or configure log filtering to redact this path.
   """
   def get_token_info(access_token) do
     url = "https://api.hubapi.com/oauth/v1/access-tokens/#{access_token}"
@@ -88,11 +93,11 @@ defmodule Ueberauth.Strategy.Hubspot.OAuth do
       {:ok, %Tesla.Env{status: 200, body: body}} ->
         {:ok, body}
 
-      {:ok, %Tesla.Env{status: status, body: body}} ->
-        {:error, "Failed to get token info: #{status} - #{inspect(body)}"}
+      {:ok, %Tesla.Env{status: status, body: _body}} ->
+        {:error, "Failed to get token info: HTTP #{status}"}
 
-      {:error, reason} ->
-        {:error, "HTTP error: #{inspect(reason)}"}
+      {:error, _reason} ->
+        {:error, "HTTP error fetching HubSpot token info"}
     end
   end
 
