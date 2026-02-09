@@ -14,10 +14,35 @@ defmodule SocialScribe.Calendar do
   """
   def list_upcoming_events(user) do
     from(e in CalendarEvent,
-      where: e.user_id == ^user.id and e.start_time > ^DateTime.utc_now(),
+      where:
+        e.user_id == ^user.id and e.start_time > ^DateTime.utc_now() and
+          e.status != "cancelled",
       order_by: [asc: e.start_time]
     )
     |> Repo.all()
+  end
+
+  @doc """
+  Marks local calendar events as "cancelled" if their google_event_id is not
+  in the given list of active IDs. Scoped to a specific user, credential, and
+  time range so only events within the sync window are affected.
+  """
+  def mark_stale_events_cancelled(
+        user_id,
+        credential_id,
+        time_range_start,
+        time_range_end,
+        active_google_event_ids
+      ) do
+    from(e in CalendarEvent,
+      where: e.user_id == ^user_id,
+      where: e.user_credential_id == ^credential_id,
+      where: e.start_time >= ^time_range_start,
+      where: e.start_time <= ^time_range_end,
+      where: e.google_event_id not in ^active_google_event_ids,
+      where: e.status != "cancelled"
+    )
+    |> Repo.update_all(set: [status: "cancelled"])
   end
 
   @doc """

@@ -19,24 +19,49 @@ defmodule SocialScribe.CalendarSynchronizer do
   #TODO: Add support for syncing only since the last sync time and record sync attempts
   """
   def sync_events_for_user(user) do
-    user
-    |> Accounts.list_user_credentials(provider: "google")
-    |> Task.async_stream(&fetch_and_sync_for_credential/1, ordered: false, on_timeout: :kill_task)
-    |> Stream.run()
+    results =
+      user
+      |> Accounts.list_user_credentials(provider: "google")
+      |> Task.async_stream(&fetch_and_sync_for_credential/1,
+        ordered: false,
+        on_timeout: :kill_task
+      )
+      |> Enum.to_list()
 
-    {:ok, :sync_complete}
+    errors =
+      Enum.filter(results, fn
+        {:ok, {:error, _}} -> true
+        {:exit, _} -> true
+        _ -> false
+      end)
+
+    if errors == [] do
+      {:ok, :sync_complete}
+    else
+      Logger.warning("Calendar sync completed with #{length(errors)} error(s)")
+      {:error, :partial_sync_failure, length(errors)}
+    end
   end
 
   defp fetch_and_sync_for_credential(%UserCredential{} = credential) do
+    time_min = DateTime.utc_now() |> Timex.beginning_of_day() |> Timex.shift(days: -1)
+    time_max = DateTime.utc_now() |> Timex.end_of_day() |> Timex.shift(days: 7)
+
     with {:ok, token} <- ensure_valid_token(credential),
          {:ok, %{"items" => items}} <-
-           GoogleCalendarApi.list_events(
-             token,
-             DateTime.utc_now() |> Timex.beginning_of_day() |> Timex.shift(days: -1),
-             DateTime.utc_now() |> Timex.end_of_day() |> Timex.shift(days: 7),
-             "primary"
-           ),
+           GoogleCalendarApi.list_events(token, time_min, time_max, "primary"),
          :ok <- sync_items(items, credential.user_id, credential.id) do
+      # Mark local events as cancelled if Google no longer returns them
+      google_event_ids = Enum.map(items, &Map.get(&1, "id"))
+
+      Calendar.mark_stale_events_cancelled(
+        credential.user_id,
+        credential.id,
+        time_min,
+        time_max,
+        google_event_ids
+      )
+
       :ok
     else
       {:error, reason} ->

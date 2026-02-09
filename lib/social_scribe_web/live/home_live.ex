@@ -74,7 +74,18 @@ defmodule SocialScribeWeb.HomeLive do
 
   @impl true
   def handle_info(:sync_calendars, socket) do
-    CalendarSynchronizer.sync_events_for_user(socket.assigns.current_user)
+    socket =
+      case CalendarSynchronizer.sync_events_for_user(socket.assigns.current_user) do
+        {:ok, :sync_complete} ->
+          socket
+
+        {:error, :partial_sync_failure, _count} ->
+          put_flash(
+            socket,
+            :error,
+            "Some calendar accounts failed to sync. Please reconnect your Google account in Settings."
+          )
+      end
 
     events = Calendar.list_upcoming_events(socket.assigns.current_user)
 

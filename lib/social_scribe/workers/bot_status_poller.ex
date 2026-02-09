@@ -79,6 +79,12 @@ defmodule SocialScribe.Workers.BotStatusPoller do
 
           Logger.info("Enqueued AI content generation for meeting #{meeting.id}")
 
+          Phoenix.PubSub.broadcast(
+            SocialScribe.PubSub,
+            "user:#{bot_record.user_id}:meetings",
+            {:meeting_created, meeting}
+          )
+
         {:error, reason} ->
           Logger.error(
             "Failed to create meeting record from bot #{bot_record.recall_bot_id}: #{inspect(reason)}"

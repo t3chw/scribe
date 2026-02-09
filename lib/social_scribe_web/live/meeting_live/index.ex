@@ -10,6 +10,13 @@ defmodule SocialScribeWeb.MeetingLive.Index do
 
   @impl true
   def mount(_params, _session, socket) do
+    if connected?(socket) do
+      Phoenix.PubSub.subscribe(
+        SocialScribe.PubSub,
+        "user:#{socket.assigns.current_user.id}:meetings"
+      )
+    end
+
     meetings = Meetings.list_user_meetings(socket.assigns.current_user)
 
     socket =
@@ -18,6 +25,12 @@ defmodule SocialScribeWeb.MeetingLive.Index do
       |> assign(:meetings, meetings)
 
     {:ok, socket}
+  end
+
+  @impl true
+  def handle_info({:meeting_created, _meeting}, socket) do
+    meetings = Meetings.list_user_meetings(socket.assigns.current_user)
+    {:noreply, assign(socket, :meetings, meetings)}
   end
 
   defp format_duration(nil), do: "N/A"
