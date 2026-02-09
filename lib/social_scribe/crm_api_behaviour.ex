@@ -31,6 +31,9 @@ defmodule SocialScribe.CrmApiBehaviour do
   @callback list_contacts(credential :: UserCredential.t()) ::
               {:ok, list(map())} | {:error, any()}
 
+  @callback create_contact(credential :: UserCredential.t(), properties :: map()) ::
+              {:ok, map()} | {:error, any()}
+
   @doc """
   Returns the implementation module for the given CRM provider name.
   Raises if the provider name is not registered in ProviderConfig.

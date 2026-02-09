@@ -117,11 +117,16 @@ defmodule SocialScribeWeb.ModalComponents do
           <div :if={@loading} class="px-4 py-2 text-sm text-gray-500">
             Searching...
           </div>
-          <div
-            :if={!@loading && Enum.empty?(@contacts) && @query != ""}
-            class="px-4 py-2 text-sm text-gray-500"
-          >
-            No contacts found
+          <div :if={!@loading && Enum.empty?(@contacts) && @query != ""} class="px-4 py-2">
+            <p class="text-sm text-gray-500">No contacts found</p>
+            <button
+              type="button"
+              phx-click="start_create_contact"
+              phx-target={@target}
+              class="mt-2 w-full text-left px-3 py-2 text-sm text-indigo-600 hover:bg-indigo-50 rounded-md font-medium flex items-center gap-2"
+            >
+              <.icon name="hero-plus-circle" class="h-4 w-4" /> Create new contact from meeting
+            </button>
           </div>
           <button
             :for={contact <- @contacts}

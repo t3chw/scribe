@@ -9,7 +9,18 @@ defmodule SocialScribe.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
-      deps: deps()
+      deps: deps(),
+      test_coverage: [tool: ExCoveralls]
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.html": :test
+      ]
     ]
   end
 
@@ -37,6 +48,7 @@ defmodule SocialScribe.MixProject do
       {:igniter, "~> 0.5", only: [:dev]},
       {:mox, "~> 1.2", only: :test},
       {:stream_data, "~> 1.0", only: :test},
+      {:excoveralls, "~> 0.18", only: :test},
       {:timex, "~> 3.0"},
       {:tesla, "~> 1.14"},
       {:ueberauth_google, "~> 0.12.1"},

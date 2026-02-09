@@ -170,6 +170,31 @@ defmodule SocialScribe.SalesforceApi do
   end
 
   @doc """
+  Creates a new contact in Salesforce with the given properties.
+  Salesforce returns 201 with the new record ID on success.
+  """
+  def create_contact(%UserCredential{} = credential, properties) when is_map(properties) do
+    with_token_refresh(credential, fn cred ->
+      instance_url = get_instance_url(cred)
+      sf_fields = to_salesforce_fields(properties)
+
+      case Tesla.post(client(cred.token, instance_url), "/sobjects/Contact", sf_fields) do
+        {:ok, %Tesla.Env{status: 201, body: %{"id" => id, "success" => true}}} ->
+          get_contact(cred, id)
+
+        {:ok, %Tesla.Env{status: 400, body: body}} ->
+          {:error, {:validation_error, body}}
+
+        {:ok, %Tesla.Env{status: status, body: body}} ->
+          {:error, {:api_error, status, body}}
+
+        {:error, reason} ->
+          {:error, {:http_error, reason}}
+      end
+    end)
+  end
+
+  @doc """
   Lists contacts from Salesforce, up to 500 contacts ordered by last modified.
   Used for syncing contacts to the local CRM contacts table.
   """

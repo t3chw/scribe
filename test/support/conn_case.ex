@@ -23,6 +23,7 @@ defmodule SocialScribeWeb.ConnCase do
       @endpoint SocialScribeWeb.Endpoint
 
       use SocialScribeWeb, :verified_routes
+      use Oban.Testing, repo: SocialScribe.Repo
 
       # Import conveniences for testing with connections
       import Plug.Conn

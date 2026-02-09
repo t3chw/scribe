@@ -167,6 +167,57 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   end
 
   @impl true
+  def handle_info({:generate_suggestions_for_new_contact, crm_name, meeting, query}, socket)
+      when crm_name in @valid_crm_names do
+    crm_config = ProviderConfig.get(crm_name)
+
+    case CrmSuggestions.generate_suggestions_from_meeting(meeting, query, crm_config) do
+      {:ok, suggestions} ->
+        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
+          id: "#{crm_name}-modal",
+          step: :creating_new,
+          suggestions: suggestions,
+          loading: false
+        )
+
+      {:error, reason} ->
+        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
+          id: "#{crm_name}-modal",
+          error: "Failed to generate suggestions: #{inspect(reason)}",
+          loading: false
+        )
+    end
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:create_crm_contact, crm_name, properties, credential}, socket)
+      when crm_name in @valid_crm_names do
+    api = CrmApiBehaviour.impl(crm_name)
+    crm_config = ProviderConfig.get(crm_name)
+
+    case api.create_contact(credential, properties) do
+      {:ok, _contact} ->
+        socket =
+          socket
+          |> put_flash(:info, "Successfully created contact in #{crm_config.display_name}")
+          |> push_patch(to: ~p"/dashboard/meetings/#{socket.assigns.meeting}")
+
+        {:noreply, socket}
+
+      {:error, reason} ->
+        send_update(SocialScribeWeb.MeetingLive.CrmModalComponent,
+          id: "#{crm_name}-modal",
+          error: "Failed to create contact: #{inspect(reason)}",
+          loading: false
+        )
+
+        {:noreply, socket}
+    end
+  end
+
+  @impl true
   def handle_info({:apply_crm_updates, crm_name, updates, contact, credential}, socket)
       when crm_name in @valid_crm_names do
     api = CrmApiBehaviour.impl(crm_name)

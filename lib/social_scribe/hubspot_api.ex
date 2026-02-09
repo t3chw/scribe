@@ -142,6 +142,29 @@ defmodule SocialScribe.HubspotApi do
   end
 
   @doc """
+  Creates a new contact in HubSpot with the given properties.
+  """
+  def create_contact(%UserCredential{} = credential, properties) when is_map(properties) do
+    with_token_refresh(credential, fn cred ->
+      body = %{properties: properties}
+
+      case Tesla.post(client(cred.token), "/crm/v3/objects/contacts", body) do
+        {:ok, %Tesla.Env{status: 201, body: body}} ->
+          {:ok, format_contact(body)}
+
+        {:ok, %Tesla.Env{status: 409, body: body}} ->
+          {:error, {:conflict, body}}
+
+        {:ok, %Tesla.Env{status: status, body: body}} ->
+          {:error, {:api_error, status, body}}
+
+        {:error, reason} ->
+          {:error, {:http_error, reason}}
+      end
+    end)
+  end
+
+  @doc """
   Lists all contacts from HubSpot, paginating up to 500 contacts.
   Used for syncing contacts to the local CRM contacts table.
   """

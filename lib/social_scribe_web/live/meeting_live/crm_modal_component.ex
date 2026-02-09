@@ -21,33 +21,70 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
 
     ~H"""
     <div class="space-y-6">
-      <div>
-        <h2 id={"#{@modal_id}-title"} class="text-xl font-medium tracking-tight text-slate-900">
-          Update in {@crm_config.name}
-        </h2>
-        <p id={"#{@modal_id}-description"} class="mt-2 text-base font-light leading-7 text-slate-500">
-          {@crm_config.description}
-        </p>
-      </div>
+      <%= if @step == :creating_new do %>
+        <div>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              phx-click="back_to_search"
+              phx-target={@myself}
+              class="text-slate-400 hover:text-slate-600"
+            >
+              <.icon name="hero-arrow-left" class="h-5 w-5" />
+            </button>
+            <h2 id={"#{@modal_id}-title"} class="text-xl font-medium tracking-tight text-slate-900">
+              Create New Contact in {@crm_config.name}
+            </h2>
+          </div>
+          <p
+            id={"#{@modal_id}-description"}
+            class="mt-2 text-base font-light leading-7 text-slate-500"
+          >
+            Review the AI-suggested fields below and create a new contact.
+          </p>
+        </div>
 
-      <.contact_select
-        selected_contact={@selected_contact}
-        contacts={@contacts}
-        loading={@searching}
-        open={@dropdown_open}
-        query={@query}
-        target={@myself}
-        error={@error}
-      />
-
-      <%= if @selected_contact do %>
         <.suggestions_section
           suggestions={@suggestions}
           loading={@loading}
           myself={@myself}
           patch={@patch}
           crm_config={@crm_config}
+          action="create_contact"
+          creating={true}
         />
+      <% else %>
+        <div>
+          <h2 id={"#{@modal_id}-title"} class="text-xl font-medium tracking-tight text-slate-900">
+            Update in {@crm_config.name}
+          </h2>
+          <p
+            id={"#{@modal_id}-description"}
+            class="mt-2 text-base font-light leading-7 text-slate-500"
+          >
+            {@crm_config.description}
+          </p>
+        </div>
+
+        <.contact_select
+          selected_contact={@selected_contact}
+          contacts={@contacts}
+          loading={@searching}
+          open={@dropdown_open}
+          query={@query}
+          target={@myself}
+          error={@error}
+        />
+
+        <%= if @selected_contact do %>
+          <.suggestions_section
+            suggestions={@suggestions}
+            loading={@loading}
+            myself={@myself}
+            patch={@patch}
+            crm_config={@crm_config}
+          />
+        <% end %>
       <% end %>
     </div>
     """
@@ -58,6 +95,8 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
   attr :myself, :any, required: true
   attr :patch, :string, required: true
   attr :crm_config, :map, required: true
+  attr :action, :string, default: "apply_updates"
+  attr :creating, :boolean, default: false
 
   defp suggestions_section(assigns) do
     assigns = assign(assigns, :selected_count, Enum.count(assigns.suggestions, & &1.apply))
@@ -76,19 +115,25 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
             submessage="The AI didn't detect any new contact information in the transcript."
           />
         <% else %>
-          <form phx-submit="apply_updates" phx-change="toggle_suggestion" phx-target={@myself}>
+          <form phx-submit={@action} phx-change="toggle_suggestion" phx-target={@myself}>
             <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
               <.suggestion_card :for={suggestion <- @suggestions} suggestion={suggestion} />
             </div>
 
             <.modal_footer
               cancel_patch={@patch}
-              submit_text={@crm_config.submit_text}
+              submit_text={
+                if @creating, do: "Create in #{@crm_config.name}", else: @crm_config.submit_text
+              }
               submit_class={@crm_config.submit_class}
               disabled={@selected_count == 0}
               loading={@loading}
-              loading_text="Updating..."
-              info_text={"1 object, #{@selected_count} fields in 1 integration selected to update"}
+              loading_text={if @creating, do: "Creating...", else: "Updating..."}
+              info_text={
+                if @creating,
+                  do: "Creating new contact with #{@selected_count} fields",
+                  else: "1 object, #{@selected_count} fields in 1 integration selected to update"
+              }
             />
           </form>
         <% end %>
@@ -224,6 +269,62 @@ defmodule SocialScribeWeb.MeetingLive.CrmModalComponent do
       end)
 
     {:noreply, assign(socket, suggestions: updated_suggestions)}
+  end
+
+  @impl true
+  def handle_event("start_create_contact", _params, socket) do
+    socket =
+      assign(socket,
+        step: :creating_new,
+        loading: true,
+        suggestions: [],
+        error: nil,
+        dropdown_open: false,
+        selected_contact: nil
+      )
+
+    send(
+      self(),
+      {:generate_suggestions_for_new_contact, socket.assigns.crm_config.id,
+       socket.assigns.meeting, socket.assigns.query}
+    )
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("back_to_search", _params, socket) do
+    {:noreply,
+     assign(socket,
+       step: :search,
+       suggestions: [],
+       loading: false,
+       error: nil
+     )}
+  end
+
+  @impl true
+  def handle_event("create_contact", %{"apply" => selected, "values" => values}, socket) do
+    socket = assign(socket, loading: true, error: nil)
+
+    properties =
+      selected
+      |> Map.keys()
+      |> Enum.reduce(%{}, fn field, acc ->
+        Map.put(acc, field, Map.get(values, field, ""))
+      end)
+
+    send(
+      self(),
+      {:create_crm_contact, socket.assigns.crm_config.id, properties, socket.assigns.credential}
+    )
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("create_contact", _params, socket) do
+    {:noreply, assign(socket, error: "Please select at least one field")}
   end
 
   @impl true

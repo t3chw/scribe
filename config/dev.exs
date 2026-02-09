@@ -4,7 +4,7 @@ import Config
 config :social_scribe, SocialScribe.Repo,
   username: "postgres",
   password: "postgres",
-  hostname: "localhost",
+  hostname: System.get_env("DATABASE_HOST", "localhost"),
   database: "social_scribe_dev",
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
