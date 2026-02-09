@@ -26,48 +26,54 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   def mount(%{"id" => meeting_id}, _session, socket) do
     meeting = Meetings.get_meeting_with_details(meeting_id)
 
-    user_has_automations =
-      Automations.list_active_user_automations(socket.assigns.current_user.id)
-      |> length()
-      |> Kernel.>(0)
+    cond do
+      is_nil(meeting) ->
+        {:ok,
+         socket
+         |> put_flash(:error, "Meeting not found.")
+         |> redirect(to: ~p"/dashboard/meetings")}
 
-    automation_results = Automations.list_automation_results_for_meeting(meeting_id)
+      meeting.calendar_event.user_id != socket.assigns.current_user.id ->
+        {:ok,
+         socket
+         |> put_flash(:error, "You do not have permission to view this meeting.")
+         |> redirect(to: ~p"/dashboard/meetings")}
 
-    if meeting.calendar_event.user_id != socket.assigns.current_user.id do
-      socket =
-        socket
-        |> put_flash(:error, "You do not have permission to view this meeting.")
-        |> redirect(to: ~p"/dashboard/meetings")
+      true ->
+        user_has_automations =
+          Automations.list_active_user_automations(socket.assigns.current_user.id)
+          |> length()
+          |> Kernel.>(0)
 
-      {:error, socket}
-    else
-      crm_credentials =
-        ProviderConfig.all()
-        |> Enum.reduce(%{}, fn provider, acc ->
-          case Accounts.get_user_crm_credential(socket.assigns.current_user.id, provider.name) do
-            nil -> acc
-            credential -> Map.put(acc, provider.name, credential)
-          end
-        end)
+        automation_results = Automations.list_automation_results_for_meeting(meeting_id)
 
-      socket =
-        socket
-        |> assign(:page_title, "Meeting Details: #{meeting.title}")
-        |> assign(:meeting, meeting)
-        |> assign(:automation_results, automation_results)
-        |> assign(:user_has_automations, user_has_automations)
-        |> assign(:crm_credentials, crm_credentials)
-        |> assign(:crm_actions, @crm_actions)
-        |> assign(:active_crm_config, nil)
-        |> assign(:active_crm_credential, nil)
-        |> assign(
-          :follow_up_email_form,
-          to_form(%{
-            "follow_up_email" => ""
-          })
-        )
+        crm_credentials =
+          ProviderConfig.all()
+          |> Enum.reduce(%{}, fn provider, acc ->
+            case Accounts.get_user_crm_credential(socket.assigns.current_user.id, provider.name) do
+              nil -> acc
+              credential -> Map.put(acc, provider.name, credential)
+            end
+          end)
 
-      {:ok, socket}
+        socket =
+          socket
+          |> assign(:page_title, "Meeting Details: #{meeting.title}")
+          |> assign(:meeting, meeting)
+          |> assign(:automation_results, automation_results)
+          |> assign(:user_has_automations, user_has_automations)
+          |> assign(:crm_credentials, crm_credentials)
+          |> assign(:crm_actions, @crm_actions)
+          |> assign(:active_crm_config, nil)
+          |> assign(:active_crm_credential, nil)
+          |> assign(
+            :follow_up_email_form,
+            to_form(%{
+              "follow_up_email" => ""
+            })
+          )
+
+        {:ok, socket}
     end
   end
 
