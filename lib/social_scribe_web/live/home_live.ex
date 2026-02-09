@@ -26,19 +26,23 @@ defmodule SocialScribeWeb.HomeLive do
 
   @impl true
   def handle_event("toggle_record", %{"id" => event_id}, socket) do
-    event = Calendar.get_calendar_event!(event_id)
+    case Calendar.get_user_calendar_event(socket.assigns.current_user.id, event_id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Event not found.")}
 
-    {:ok, event} =
-      Calendar.update_calendar_event(event, %{record_meeting: not event.record_meeting})
+      event ->
+        {:ok, event} =
+          Calendar.update_calendar_event(event, %{record_meeting: not event.record_meeting})
 
-    send(self(), {:schedule_bot, event})
+        send(self(), {:schedule_bot, event})
 
-    updated_events =
-      Enum.map(socket.assigns.events, fn e ->
-        if e.id == event.id, do: event, else: e
-      end)
+        updated_events =
+          Enum.map(socket.assigns.events, fn e ->
+            if e.id == event.id, do: event, else: e
+          end)
 
-    {:noreply, assign(socket, :events, updated_events)}
+        {:noreply, assign(socket, :events, updated_events)}
+    end
   end
 
   @impl true

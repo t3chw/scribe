@@ -186,7 +186,8 @@ defmodule SocialScribe.AIContentGenerator do
     Tesla.client([
       {Tesla.Middleware.BaseUrl, @gemini_api_base_url},
       Tesla.Middleware.JSON,
-      {Tesla.Middleware.Headers, [{"x-goog-api-key", api_key}]}
+      {Tesla.Middleware.Headers, [{"x-goog-api-key", api_key}]},
+      {Tesla.Middleware.Timeout, timeout: 30_000}
     ])
   end
 end

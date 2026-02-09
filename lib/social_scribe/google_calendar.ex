@@ -33,7 +33,8 @@ defmodule SocialScribe.GoogleCalendar do
     Tesla.client([
       {Tesla.Middleware.BaseUrl, @base_url},
       {Tesla.Middleware.Headers, [{"Authorization", "Bearer #{token}"}]},
-      Tesla.Middleware.JSON
+      Tesla.Middleware.JSON,
+      {Tesla.Middleware.Timeout, timeout: 15_000}
     ])
   end
 end

@@ -75,6 +75,15 @@ defmodule SocialScribe.Calendar do
   def get_calendar_event!(id), do: Repo.get!(CalendarEvent, id)
 
   @doc """
+  Gets a single calendar_event scoped to a user.
+
+  Returns `nil` if the event does not exist or does not belong to the user.
+  """
+  def get_user_calendar_event(user_id, event_id) do
+    Repo.get_by(CalendarEvent, id: event_id, user_id: user_id)
+  end
+
+  @doc """
   Creates a calendar_event.
 
   ## Examples

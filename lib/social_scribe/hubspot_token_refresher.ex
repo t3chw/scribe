@@ -11,7 +11,8 @@ defmodule SocialScribe.HubspotTokenRefresher do
     Tesla.client([
       {Tesla.Middleware.FormUrlencoded,
        encode: &Plug.Conn.Query.encode/1, decode: &Plug.Conn.Query.decode/1},
-      Tesla.Middleware.JSON
+      Tesla.Middleware.JSON,
+      {Tesla.Middleware.Timeout, timeout: 15_000}
     ])
   end
 
@@ -45,23 +46,42 @@ defmodule SocialScribe.HubspotTokenRefresher do
 
   @doc """
   Refreshes the token for a HubSpot credential and updates it in the database.
+  Uses a row-level lock to prevent concurrent refreshes from invalidating
+  each other's tokens (HubSpot rotates refresh tokens).
   """
   def refresh_credential(credential) do
-    alias SocialScribe.Accounts
+    alias SocialScribe.{Accounts, Accounts.UserCredential, Repo}
 
-    case refresh_token(credential.refresh_token) do
-      {:ok, response} ->
-        attrs = %{
-          token: response["access_token"],
-          refresh_token: response["refresh_token"],
-          expires_at: DateTime.add(DateTime.utc_now(), response["expires_in"], :second)
-        }
+    Repo.transaction(fn ->
+      locked_cred = Repo.get!(UserCredential, credential.id, lock: "FOR UPDATE")
 
-        Accounts.update_user_credential(credential, attrs)
+      # Re-check expiry under lock — another process may have already refreshed
+      buffer_seconds = 300
 
-      {:error, reason} ->
-        {:error, reason}
-    end
+      if DateTime.compare(
+           locked_cred.expires_at,
+           DateTime.add(DateTime.utc_now(), buffer_seconds, :second)
+         ) != :lt do
+        locked_cred
+      else
+        case refresh_token(locked_cred.refresh_token) do
+          {:ok, response} ->
+            attrs = %{
+              token: response["access_token"],
+              refresh_token: response["refresh_token"],
+              expires_at: DateTime.add(DateTime.utc_now(), response["expires_in"], :second)
+            }
+
+            case Accounts.update_user_credential(locked_cred, attrs) do
+              {:ok, updated} -> updated
+              {:error, changeset} -> Repo.rollback(changeset)
+            end
+
+          {:error, reason} ->
+            Repo.rollback(reason)
+        end
+      end
+    end)
   end
 
   @doc """

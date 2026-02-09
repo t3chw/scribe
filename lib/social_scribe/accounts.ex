@@ -479,6 +479,15 @@ defmodule SocialScribe.Accounts do
   """
   def get_facebook_page_credential!(id), do: Repo.get!(FacebookPageCredential, id)
 
+  @doc """
+  Gets a single facebook_page_credential scoped to a user.
+
+  Returns `nil` if the credential does not exist or does not belong to the user.
+  """
+  def get_user_facebook_page_credential(user_id, id) do
+    Repo.get_by(FacebookPageCredential, id: id, user_id: user_id)
+  end
+
   def get_user_selected_facebook_page_credential(user) do
     Repo.get_by(FacebookPageCredential, user_id: user.id, selected: true)
   end

@@ -46,7 +46,8 @@ defmodule SocialScribe.LinkedIn do
       {Tesla.Middleware.BaseUrl, @linkedin_api_base_url},
       {Tesla.Middleware.Headers,
        [{"Authorization", "Bearer #{token}"}, {"X-Restli-Protocol-Version", "2.0.0"}]},
-      Tesla.Middleware.JSON
+      Tesla.Middleware.JSON,
+      {Tesla.Middleware.Timeout, timeout: 15_000}
     ])
   end
 end

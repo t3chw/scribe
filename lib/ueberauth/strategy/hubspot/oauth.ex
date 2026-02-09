@@ -102,7 +102,7 @@ defmodule Ueberauth.Strategy.Hubspot.OAuth do
   end
 
   defp http_client do
-    Tesla.client([Tesla.Middleware.JSON])
+    Tesla.client([Tesla.Middleware.JSON, {Tesla.Middleware.Timeout, timeout: 15_000}])
   end
 
   # OAuth2.Strategy callbacks

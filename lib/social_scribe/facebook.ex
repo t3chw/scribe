@@ -56,13 +56,18 @@ defmodule SocialScribe.Facebook do
 
       {:ok, %Tesla.Env{status: status, body: body}} ->
         {:error, "Failed to fetch user pages: #{status} - #{body}"}
+
+      {:error, reason} ->
+        Logger.error("Facebook Fetch Pages HTTP Error (User ID: #{user_id}): #{inspect(reason)}")
+        {:error, {:http_error_fetching_pages, reason}}
     end
   end
 
   defp client do
     Tesla.client([
       {Tesla.Middleware.BaseUrl, @base_url},
-      Tesla.Middleware.JSON
+      Tesla.Middleware.JSON,
+      {Tesla.Middleware.Timeout, timeout: 15_000}
     ])
   end
 end

@@ -37,14 +37,15 @@ defmodule SocialScribe.SalesforceApi do
        [
          {"Authorization", "Bearer #{access_token}"},
          {"Content-Type", "application/json"}
-       ]}
+       ]},
+      {Tesla.Middleware.Timeout, timeout: 15_000}
     ])
   end
 
   defp get_instance_url(%UserCredential{metadata: %{"instance_url" => url}}) when is_binary(url),
-    do: url
+    do: {:ok, url}
 
-  defp get_instance_url(_), do: "https://login.salesforce.com"
+  defp get_instance_url(_), do: {:error, :missing_instance_url}
 
   @doc """
   Searches for contacts by query string using SOSL.
@@ -52,28 +53,29 @@ defmodule SocialScribe.SalesforceApi do
   """
   def search_contacts(%UserCredential{} = credential, query) when is_binary(query) do
     with_token_refresh(credential, fn cred ->
-      sanitized = sanitize_sosl(query)
-      instance_url = get_instance_url(cred)
+      with {:ok, instance_url} <- get_instance_url(cred) do
+        sanitized = sanitize_sosl(query)
 
-      sosl =
-        "FIND {#{sanitized}} IN ALL FIELDS RETURNING Contact(#{Enum.join(@contact_fields, ",")}) LIMIT 10"
+        sosl =
+          "FIND {#{sanitized}} IN ALL FIELDS RETURNING Contact(#{Enum.join(@contact_fields, ",")}) LIMIT 10"
 
-      url = "/search/?q=#{URI.encode(sosl)}"
+        url = "/search/?q=#{URI.encode(sosl)}"
 
-      case Tesla.get(client(cred.token, instance_url), url) do
-        {:ok, %Tesla.Env{status: 200, body: %{"searchRecords" => records}}} ->
-          contacts = Enum.map(records, &format_contact/1)
-          {:ok, contacts}
+        case Tesla.get(client(cred.token, instance_url), url) do
+          {:ok, %Tesla.Env{status: 200, body: %{"searchRecords" => records}}} ->
+            contacts = Enum.map(records, &format_contact/1)
+            {:ok, contacts}
 
-        {:ok, %Tesla.Env{status: 200, body: body}} when is_list(body) ->
-          contacts = Enum.map(body, &format_contact/1)
-          {:ok, contacts}
+          {:ok, %Tesla.Env{status: 200, body: body}} when is_list(body) ->
+            contacts = Enum.map(body, &format_contact/1)
+            {:ok, contacts}
 
-        {:ok, %Tesla.Env{status: status, body: body}} ->
-          {:error, {:api_error, status, body}}
+          {:ok, %Tesla.Env{status: status, body: body}} ->
+            {:error, {:api_error, status, body}}
 
-        {:error, reason} ->
-          {:error, {:http_error, reason}}
+          {:error, reason} ->
+            {:error, {:http_error, reason}}
+        end
       end
     end)
   end
@@ -83,22 +85,23 @@ defmodule SocialScribe.SalesforceApi do
   """
   def get_contact(%UserCredential{} = credential, contact_id) do
     with_token_refresh(credential, fn cred ->
-      instance_url = get_instance_url(cred)
-      fields_param = Enum.join(@contact_fields, ",")
-      url = "/sobjects/Contact/#{contact_id}?fields=#{fields_param}"
+      with {:ok, instance_url} <- get_instance_url(cred) do
+        fields_param = Enum.join(@contact_fields, ",")
+        url = "/sobjects/Contact/#{contact_id}?fields=#{fields_param}"
 
-      case Tesla.get(client(cred.token, instance_url), url) do
-        {:ok, %Tesla.Env{status: 200, body: body}} ->
-          {:ok, format_contact(body)}
+        case Tesla.get(client(cred.token, instance_url), url) do
+          {:ok, %Tesla.Env{status: 200, body: body}} ->
+            {:ok, format_contact(body)}
 
-        {:ok, %Tesla.Env{status: 404, body: _body}} ->
-          {:error, :not_found}
+          {:ok, %Tesla.Env{status: 404, body: _body}} ->
+            {:error, :not_found}
 
-        {:ok, %Tesla.Env{status: status, body: body}} ->
-          {:error, {:api_error, status, body}}
+          {:ok, %Tesla.Env{status: status, body: body}} ->
+            {:error, {:api_error, status, body}}
 
-        {:error, reason} ->
-          {:error, {:http_error, reason}}
+          {:error, reason} ->
+            {:error, {:http_error, reason}}
+        end
       end
     end)
   end
@@ -110,32 +113,33 @@ defmodule SocialScribe.SalesforceApi do
   def update_contact(%UserCredential{} = credential, contact_id, updates)
       when is_map(updates) do
     with_token_refresh(credential, fn cred ->
-      instance_url = get_instance_url(cred)
-      # Map our lowercase keys to Salesforce PascalCase
-      sf_updates = to_salesforce_fields(updates)
+      with {:ok, instance_url} <- get_instance_url(cred) do
+        # Map our lowercase keys to Salesforce PascalCase
+        sf_updates = to_salesforce_fields(updates)
 
-      case Tesla.patch(
-             client(cred.token, instance_url),
-             "/sobjects/Contact/#{contact_id}",
-             sf_updates
-           ) do
-        {:ok, %Tesla.Env{status: 204}} ->
-          # Salesforce returns 204 No Content on success, fetch the updated contact
-          # Use `cred` (the potentially-refreshed credential) instead of the outer
-          # `credential` to avoid using a stale token for the follow-up GET.
-          get_contact(cred, contact_id)
+        case Tesla.patch(
+               client(cred.token, instance_url),
+               "/sobjects/Contact/#{contact_id}",
+               sf_updates
+             ) do
+          {:ok, %Tesla.Env{status: 204}} ->
+            # Salesforce returns 204 No Content on success, fetch the updated contact
+            # Use `cred` (the potentially-refreshed credential) instead of the outer
+            # `credential` to avoid using a stale token for the follow-up GET.
+            get_contact(cred, contact_id)
 
-        {:ok, %Tesla.Env{status: 200, body: body}} ->
-          {:ok, format_contact(body)}
+          {:ok, %Tesla.Env{status: 200, body: body}} ->
+            {:ok, format_contact(body)}
 
-        {:ok, %Tesla.Env{status: 404, body: _body}} ->
-          {:error, :not_found}
+          {:ok, %Tesla.Env{status: 404, body: _body}} ->
+            {:error, :not_found}
 
-        {:ok, %Tesla.Env{status: status, body: body}} ->
-          {:error, {:api_error, status, body}}
+          {:ok, %Tesla.Env{status: status, body: body}} ->
+            {:error, {:api_error, status, body}}
 
-        {:error, reason} ->
-          {:error, {:http_error, reason}}
+          {:error, reason} ->
+            {:error, {:http_error, reason}}
+        end
       end
     end)
   end
@@ -175,21 +179,22 @@ defmodule SocialScribe.SalesforceApi do
   """
   def create_contact(%UserCredential{} = credential, properties) when is_map(properties) do
     with_token_refresh(credential, fn cred ->
-      instance_url = get_instance_url(cred)
-      sf_fields = to_salesforce_fields(properties)
+      with {:ok, instance_url} <- get_instance_url(cred) do
+        sf_fields = to_salesforce_fields(properties)
 
-      case Tesla.post(client(cred.token, instance_url), "/sobjects/Contact", sf_fields) do
-        {:ok, %Tesla.Env{status: 201, body: %{"id" => id, "success" => true}}} ->
-          get_contact(cred, id)
+        case Tesla.post(client(cred.token, instance_url), "/sobjects/Contact", sf_fields) do
+          {:ok, %Tesla.Env{status: 201, body: %{"id" => id, "success" => true}}} ->
+            get_contact(cred, id)
 
-        {:ok, %Tesla.Env{status: 400, body: body}} ->
-          {:error, {:validation_error, body}}
+          {:ok, %Tesla.Env{status: 400, body: body}} ->
+            {:error, {:validation_error, body}}
 
-        {:ok, %Tesla.Env{status: status, body: body}} ->
-          {:error, {:api_error, status, body}}
+          {:ok, %Tesla.Env{status: status, body: body}} ->
+            {:error, {:api_error, status, body}}
 
-        {:error, reason} ->
-          {:error, {:http_error, reason}}
+          {:error, reason} ->
+            {:error, {:http_error, reason}}
+        end
       end
     end)
   end
@@ -200,21 +205,22 @@ defmodule SocialScribe.SalesforceApi do
   """
   def list_contacts(%UserCredential{} = credential) do
     with_token_refresh(credential, fn cred ->
-      instance_url = get_instance_url(cred)
-      fields = Enum.join(@contact_fields, ",")
-      soql = "SELECT #{fields} FROM Contact ORDER BY LastModifiedDate DESC LIMIT 500"
-      url = "/query/?q=#{URI.encode(soql)}"
+      with {:ok, instance_url} <- get_instance_url(cred) do
+        fields = Enum.join(@contact_fields, ",")
+        soql = "SELECT #{fields} FROM Contact ORDER BY LastModifiedDate DESC LIMIT 500"
+        url = "/query/?q=#{URI.encode(soql)}"
 
-      case Tesla.get(client(cred.token, instance_url), url) do
-        {:ok, %Tesla.Env{status: 200, body: %{"records" => records}}} ->
-          contacts = records |> Enum.map(&format_contact/1) |> Enum.reject(&is_nil/1)
-          {:ok, contacts}
+        case Tesla.get(client(cred.token, instance_url), url) do
+          {:ok, %Tesla.Env{status: 200, body: %{"records" => records}}} ->
+            contacts = records |> Enum.map(&format_contact/1) |> Enum.reject(&is_nil/1)
+            {:ok, contacts}
 
-        {:ok, %Tesla.Env{status: status, body: body}} ->
-          {:error, {:api_error, status, body}}
+          {:ok, %Tesla.Env{status: status, body: body}} ->
+            {:error, {:api_error, status, body}}
 
-        {:error, reason} ->
-          {:error, {:http_error, reason}}
+          {:error, reason} ->
+            {:error, {:http_error, reason}}
+        end
       end
     end)
   end

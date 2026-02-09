@@ -11,7 +11,8 @@ defmodule SocialScribe.SalesforceTokenRefresher do
     Tesla.client([
       {Tesla.Middleware.FormUrlencoded,
        encode: &Plug.Conn.Query.encode/1, decode: &Plug.Conn.Query.decode/1},
-      Tesla.Middleware.JSON
+      Tesla.Middleware.JSON,
+      {Tesla.Middleware.Timeout, timeout: 15_000}
     ])
   end
 
@@ -46,33 +47,52 @@ defmodule SocialScribe.SalesforceTokenRefresher do
 
   @doc """
   Refreshes the token for a Salesforce credential and updates it in the database.
+  Uses a row-level lock to prevent concurrent refreshes from conflicting.
   """
   def refresh_credential(credential) do
-    alias SocialScribe.Accounts
+    alias SocialScribe.{Accounts, Accounts.UserCredential, Repo}
 
-    case refresh_token(credential.refresh_token) do
-      {:ok, response} ->
-        # Salesforce token response includes issued_at (Unix epoch in milliseconds)
-        # and doesn't include expires_in directly, but tokens typically last ~2 hours
-        expires_in = Map.get(response, "expires_in", 7200)
+    Repo.transaction(fn ->
+      locked_cred = Repo.get!(UserCredential, credential.id, lock: "FOR UPDATE")
 
-        attrs = %{
-          token: response["access_token"],
-          # Salesforce doesn't rotate refresh tokens by default
-          refresh_token: credential.refresh_token,
-          expires_at: DateTime.add(DateTime.utc_now(), expires_in, :second),
-          metadata:
-            Map.merge(credential.metadata || %{}, %{
-              "instance_url" =>
-                response["instance_url"] || get_in(credential.metadata || %{}, ["instance_url"])
-            })
-        }
+      # Re-check expiry under lock — another process may have already refreshed
+      buffer_seconds = 300
 
-        Accounts.update_user_credential(credential, attrs)
+      if DateTime.compare(
+           locked_cred.expires_at,
+           DateTime.add(DateTime.utc_now(), buffer_seconds, :second)
+         ) != :lt do
+        locked_cred
+      else
+        case refresh_token(locked_cred.refresh_token) do
+          {:ok, response} ->
+            # Salesforce token response includes issued_at (Unix epoch in milliseconds)
+            # and doesn't include expires_in directly, but tokens typically last ~2 hours
+            expires_in = Map.get(response, "expires_in", 7200)
 
-      {:error, reason} ->
-        {:error, reason}
-    end
+            attrs = %{
+              token: response["access_token"],
+              # Salesforce doesn't rotate refresh tokens by default
+              refresh_token: locked_cred.refresh_token,
+              expires_at: DateTime.add(DateTime.utc_now(), expires_in, :second),
+              metadata:
+                Map.merge(locked_cred.metadata || %{}, %{
+                  "instance_url" =>
+                    response["instance_url"] ||
+                      get_in(locked_cred.metadata || %{}, ["instance_url"])
+                })
+            }
+
+            case Accounts.update_user_credential(locked_cred, attrs) do
+              {:ok, updated} -> updated
+              {:error, changeset} -> Repo.rollback(changeset)
+            end
+
+          {:error, reason} ->
+            Repo.rollback(reason)
+        end
+      end
+    end)
   end
 
   @doc """

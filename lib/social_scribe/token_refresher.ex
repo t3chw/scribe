@@ -11,7 +11,8 @@ defmodule SocialScribe.TokenRefresher do
     middlewares = [
       {Tesla.Middleware.FormUrlencoded,
        encode: &Plug.Conn.Query.encode/1, decode: &Plug.Conn.Query.decode/1},
-      Tesla.Middleware.JSON
+      Tesla.Middleware.JSON,
+      {Tesla.Middleware.Timeout, timeout: 15_000}
     ]
 
     Tesla.client(middlewares)

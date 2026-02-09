@@ -27,8 +27,9 @@ defmodule SocialScribe.Workers.AIContentGenerationWorker do
           :ok ->
             if meeting.calendar_event && meeting.calendar_event.user_id do
               process_user_automations(meeting, meeting.calendar_event.user_id)
-              :ok
             end
+
+            :ok
 
           {:error, reason} ->
             {:error, reason}

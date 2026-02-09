@@ -74,14 +74,22 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   @impl true
   def handle_params(%{"automation_result_id" => automation_result_id}, _uri, socket) do
     automation_result = Automations.get_automation_result!(automation_result_id)
-    automation = Automations.get_automation!(automation_result.automation_id)
 
-    socket =
-      socket
-      |> assign(:automation_result, automation_result)
-      |> assign(:automation, automation)
+    if automation_result.meeting_id != socket.assigns.meeting.id do
+      {:noreply,
+       socket
+       |> put_flash(:error, "Content not found.")
+       |> push_patch(to: ~p"/dashboard/meetings/#{socket.assigns.meeting}")}
+    else
+      automation = Automations.get_automation!(automation_result.automation_id)
 
-    {:noreply, socket}
+      socket =
+        socket
+        |> assign(:automation_result, automation_result)
+        |> assign(:automation, automation)
+
+      {:noreply, socket}
+    end
   end
 
   @impl true

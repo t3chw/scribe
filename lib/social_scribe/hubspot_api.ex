@@ -39,7 +39,8 @@ defmodule SocialScribe.HubspotApi do
        [
          {"Authorization", "Bearer #{access_token}"},
          {"Content-Type", "application/json"}
-       ]}
+       ]},
+      {Tesla.Middleware.Timeout, timeout: 15_000}
     ])
   end
 

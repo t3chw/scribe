@@ -14,7 +14,8 @@ defmodule SocialScribe.Recall do
          {"Authorization", "Token #{api_key}"},
          {"Content-Type", "application/json"},
          {"Accept", "application/json"}
-       ]}
+       ]},
+      {Tesla.Middleware.Timeout, timeout: 15_000}
     ])
   end
 
@@ -63,7 +64,10 @@ defmodule SocialScribe.Recall do
          {:ok, %{body: recording}} <- get_recording(recording_id),
          url when is_binary(url) <-
            get_in(recording, [:media_shortcuts, :transcript, :data, :download_url]) do
-      Tesla.client([{Tesla.Middleware.JSON, engine_opts: [keys: :atoms]}])
+      Tesla.client([
+        {Tesla.Middleware.JSON, engine_opts: [keys: :atoms]},
+        {Tesla.Middleware.Timeout, timeout: 30_000}
+      ])
       |> Tesla.get(url)
     else
       [] -> {:error, :no_recordings}
@@ -82,7 +86,10 @@ defmodule SocialScribe.Recall do
          [%{id: recording_id} | _] <- Map.get(bot_info, :recordings, []),
          {:ok, %{body: recording}} <- get_recording(recording_id),
          url when is_binary(url) <- get_participants_url(recording) do
-      Tesla.client([{Tesla.Middleware.JSON, engine_opts: [keys: :atoms]}])
+      Tesla.client([
+        {Tesla.Middleware.JSON, engine_opts: [keys: :atoms]},
+        {Tesla.Middleware.Timeout, timeout: 30_000}
+      ])
       |> Tesla.get(url)
     else
       [] -> {:error, :no_recordings}
