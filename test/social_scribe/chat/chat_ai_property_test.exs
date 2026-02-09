@@ -72,8 +72,8 @@ defmodule SocialScribe.Chat.ChatAIPropertyTest do
   describe "fallback extraction properties" do
     property "finds capitalized multi-word names" do
       check all(
-              first <- capitalized_name_generator(),
-              last <- capitalized_name_generator()
+              first <- non_common_name_generator(),
+              last <- non_common_name_generator()
             ) do
         # No @ prefix, so fallback kicks in
         full_name = "#{first} #{last}"
@@ -107,6 +107,12 @@ defmodule SocialScribe.Chat.ChatAIPropertyTest do
           rest <- string(?a..?z, min_length: 2, max_length: 8)
         ) do
       first <> rest
+    end
+  end
+
+  defp non_common_name_generator do
+    gen all(name <- capitalized_name_generator(), name not in @common_words) do
+      name
     end
   end
 
