@@ -114,7 +114,7 @@ To add a new CRM (e.g. Pipedrive), follow these steps:
    end
    ```
 
-3. **Create a token refresher** (e.g. `lib/social_scribe/pipedrive_token_refresher.ex`) and register it in `Workers.CrmTokenRefresher.@token_refreshers`.
+3. **Create a token refresher** (e.g. `lib/social_scribe/pipedrive_token_refresher.ex`) implementing `SocialScribe.CrmTokenRefresherBehaviour`, and register it in the `@default_refreshers` map in `Workers.CrmTokenRefresher`.
 
 4. **Add an Oban cron entry** in `config/config.exs`:
    ```elixir
@@ -139,7 +139,7 @@ That's it — no changes needed to `CrmSuggestions`, `CrmModalComponent`, `Meeti
 
 ## App Flow
 
-* **Login With Google and Meetins Sync:**
+* **Login With Google and Meetings Sync:**
     ![Auth Flow](https://youtu.be/RM7YSlu5ZDg)
 
 * **Creating Automations:**
@@ -252,7 +252,7 @@ Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 mix setup                        # Full setup: deps, database, assets
 mix phx.server                   # Start dev server
 iex -S mix phx.server            # Start with IEx shell
-mix test                         # Run all tests (315+ tests)
+mix test                         # Run all tests (332 tests)
 mix test test/path/file.exs      # Run single test file
 mix test test/path/file.exs:42   # Run test at line number
 mix format                       # Format code
@@ -310,7 +310,7 @@ mix ecto.reset                   # Drop, create, migrate, seed
 ## Testing
 
 ```bash
-mix test    # 315+ tests, 0 failures
+mix test    # 332 tests, 0 failures
 ```
 
 Tests use Mox for all external APIs, `Ecto.Adapters.SQL.Sandbox` for DB isolation, and Oban `testing: :manual` mode. Includes property-based tests with StreamData for CRM suggestion merging.

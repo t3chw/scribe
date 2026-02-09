@@ -3,6 +3,8 @@ defmodule SocialScribe.HubspotTokenRefresher do
   Refreshes HubSpot OAuth tokens.
   """
 
+  @behaviour SocialScribe.CrmTokenRefresherBehaviour
+
   @hubspot_token_url "https://api.hubapi.com/oauth/v1/token"
 
   def client do

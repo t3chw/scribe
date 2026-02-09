@@ -14,7 +14,7 @@ defmodule SocialScribe.Workers.CrmTokenRefresher do
 
   @refresh_threshold_minutes 10
 
-  @token_refreshers %{
+  @default_refreshers %{
     "hubspot" => SocialScribe.HubspotTokenRefresher,
     "salesforce" => SocialScribe.SalesforceTokenRefresher
   }
@@ -22,7 +22,7 @@ defmodule SocialScribe.Workers.CrmTokenRefresher do
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"provider" => provider}}) do
     Logger.info("Running proactive #{provider} token refresh check...")
-    refresher = Map.fetch!(@token_refreshers, provider)
+    refresher = get_refresher(provider)
 
     case get_expiring_credentials(provider) do
       [] ->
@@ -36,6 +36,11 @@ defmodule SocialScribe.Workers.CrmTokenRefresher do
 
         refresh_all(credentials, refresher, provider)
     end
+  end
+
+  defp get_refresher(provider) do
+    refreshers = Application.get_env(:social_scribe, :crm_token_refreshers, @default_refreshers)
+    Map.fetch!(refreshers, provider)
   end
 
   defp get_expiring_credentials(provider) do
@@ -57,11 +62,23 @@ defmodule SocialScribe.Workers.CrmTokenRefresher do
 
         {:error, reason} ->
           Logger.error(
-            "Failed to proactively refresh #{provider} token for credential #{credential.id}: #{inspect(reason)}"
+            "Failed to proactively refresh #{provider} token for credential #{credential.id}: #{sanitize_log(reason)}"
           )
       end
     end)
 
     :ok
   end
+
+  defp sanitize_log(body) when is_map(body) do
+    body
+    |> Map.take(["error", "errorCode", "message", "error_description", "status"])
+    |> inspect()
+  end
+
+  defp sanitize_log({status, body}) when is_integer(status) and is_map(body) do
+    "{#{status}, #{sanitize_log(body)}}"
+  end
+
+  defp sanitize_log(other), do: inspect(other)
 end

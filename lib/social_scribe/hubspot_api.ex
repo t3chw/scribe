@@ -235,7 +235,7 @@ defmodule SocialScribe.HubspotApi do
             Logger.info("HubSpot token expired, refreshing and retrying...")
             retry_with_fresh_token(credential, api_call)
           else
-            Logger.error("HubSpot API error: #{status} - #{inspect(body)}")
+            Logger.error("HubSpot API error: #{status} - #{sanitize_log(body)}")
             {:error, {:api_error, status, body}}
           end
 
@@ -250,11 +250,11 @@ defmodule SocialScribe.HubspotApi do
       {:ok, refreshed_credential} ->
         case api_call.(refreshed_credential) do
           {:error, {:api_error, status, body}} ->
-            Logger.error("HubSpot API error after refresh: #{status} - #{inspect(body)}")
+            Logger.error("HubSpot API error after refresh: #{status} - #{sanitize_log(body)}")
             {:error, {:api_error, status, body}}
 
           {:error, {:http_error, reason}} ->
-            Logger.error("HubSpot HTTP error after refresh: #{inspect(reason)}")
+            Logger.error("HubSpot HTTP error after refresh: #{sanitize_log(reason)}")
             {:error, {:http_error, reason}}
 
           success ->
@@ -262,10 +262,18 @@ defmodule SocialScribe.HubspotApi do
         end
 
       {:error, refresh_error} ->
-        Logger.error("Failed to refresh HubSpot token: #{inspect(refresh_error)}")
+        Logger.error("Failed to refresh HubSpot token: #{sanitize_log(refresh_error)}")
         {:error, {:token_refresh_failed, refresh_error}}
     end
   end
+
+  defp sanitize_log(body) when is_map(body) do
+    body
+    |> Map.take(["error", "status", "message", "error_description"])
+    |> inspect()
+  end
+
+  defp sanitize_log(other), do: inspect(other)
 
   defp is_token_error?(%{"status" => "BAD_CLIENT_ID"}), do: true
   defp is_token_error?(%{"status" => "UNAUTHORIZED"}), do: true

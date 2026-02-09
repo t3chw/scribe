@@ -20,9 +20,28 @@ defmodule SocialScribe.Chat do
     Repo.get!(Conversation, id)
   end
 
+  @doc """
+  Gets a conversation by ID, scoped to the given user.
+  Raises Ecto.NoResultsError if not found or not owned by the user.
+  """
+  def get_conversation!(id, user_id) do
+    from(c in Conversation, where: c.id == ^id and c.user_id == ^user_id)
+    |> Repo.one!()
+  end
+
   def get_conversation_with_messages(id) do
     Conversation
     |> Repo.get!(id)
+    |> Repo.preload(messages: from(m in Message, order_by: [asc: m.inserted_at]))
+  end
+
+  @doc """
+  Gets a conversation with messages, scoped to the given user.
+  Raises Ecto.NoResultsError if not found or not owned by the user.
+  """
+  def get_conversation_with_messages(id, user_id) do
+    from(c in Conversation, where: c.id == ^id and c.user_id == ^user_id)
+    |> Repo.one!()
     |> Repo.preload(messages: from(m in Message, order_by: [asc: m.inserted_at]))
   end
 
